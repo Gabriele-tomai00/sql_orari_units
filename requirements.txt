@@ -1,0 +1,4 @@
+utils
+requests
+joblib
+chromadb
