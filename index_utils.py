@@ -12,7 +12,8 @@ Settings.llm = OpenAILike(
     max_tokens=1024,
     temperature=0.1,
     is_chat_model=True,
-    # system_prompt=get_prompt_from_file("prompt_for_llm.txt"),
+    system_prompt=get_prompt_from_file("prompt_for_llm.txt"),
+    timeout=30,
 )
 
 def get_prompt_from_file(file_path):

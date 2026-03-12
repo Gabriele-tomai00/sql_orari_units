@@ -125,6 +125,62 @@ def build_all_indexes(db_path: Path, chroma_dir: Path) -> None:
 
 
 
+# ------------ Evento (lezione) ---------------
+
+    # --- evento.department ---
+    print("\nBuilding index: evento.department")
+    rows = con.execute(
+        "SELECT DISTINCT department FROM evento WHERE department IS NOT NULL"
+    ).fetchall()
+    build_column_index([r[0] for r in rows], "evento__department", chroma_client)
+
+    # --- evento.study_course ---
+    print("\nBuilding index: evento.study_course")
+    rows = con.execute(
+        "SELECT DISTINCT study_course FROM evento WHERE study_course IS NOT NULL"
+    ).fetchall()
+    build_column_index([r[0] for r in rows], "evento__study_course", chroma_client)
+
+    # --- evento.subject_name ---
+    print("\nBuilding index: evento.subject_name")
+    rows = con.execute(
+        "SELECT DISTINCT subject_name FROM evento WHERE subject_name IS NOT NULL"
+    ).fetchall()
+    build_column_index([r[0] for r in rows], "evento__subject_name", chroma_client)
+
+
+    # --- evento.curriculum ---
+    print("\nBuilding index: evento.curriculum")
+    rows = con.execute(
+        "SELECT DISTINCT curriculum FROM evento WHERE curriculum IS NOT NULL"
+    ).fetchall()
+    build_column_index([r[0] for r in rows], "evento__curriculum", chroma_client)
+
+    # --- evento.date ---
+    print("\nBuilding index: evento.date_iso")
+    rows = con.execute(
+        "SELECT DISTINCT date_iso FROM evento WHERE date_iso IS NOT NULL"
+    ).fetchall()
+    build_column_index([r[0] for r in rows], "evento__date_iso", chroma_client)
+
+
+    # --- evento.full_location ---
+    print("\nBuilding index: evento.full_location")
+    rows = con.execute(
+        "SELECT DISTINCT full_location FROM evento WHERE full_location IS NOT NULL"
+    ).fetchall()
+    build_column_index([r[0] for r in rows], "evento__full_location", chroma_client)
+
+
+    # --- evento.professor ---
+    print("\nBuilding index: evento.professor")
+    rows = con.execute(
+        "SELECT DISTINCT professor FROM evento WHERE professor IS NOT NULL"
+    ).fetchall()
+    build_column_index([r[0] for r in rows], "evento__professor", chroma_client)
+
+
+
 
 
     con.close()

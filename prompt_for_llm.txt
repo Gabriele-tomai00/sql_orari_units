@@ -15,7 +15,7 @@ General behavior
 - Reply only with the answer to the user’s request; do not repeat the context or the prompt.
 
 For event requests
-- If you can't find events for a classroom at a certain time or day, it's free
+- If the user asks about specific lessons, specific dates, you must check the EVENTO table in database
 
 For request about courses in db
 It's possible that a course may be present in two degree programs and therefore you see it twice or more, but if you check the entire row you will notice the differences. 

@@ -35,7 +35,7 @@ TEST_QUESTIONS = [
     # "Chi è Trevisan Martino?",
     # "Dimmi il codice Teams dell'insegnamento di Software Development Methods",
     # "Quale insegnamento insegna il prof Paolo Vercesi?",
-    "Quali insegnamenti sono tenuti da Martino Trevisan?",
+    "Quali insegnamenti sono tenuti da Vercesi Paolo",
     "Quali insegnamenti sono tenuti dal prof De Lorenzo?"
 ]
 
@@ -246,6 +246,7 @@ def run_tests(query_engine) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Test suite for university NL query engine")
     parser.add_argument("--db", default=DEFAULT_DB, help="SQLite file path")
+    parser.add_argument("--log", default=DEFAULT_DB, help="print additional information about retrieved chunks and generated SQL")
     parser.add_argument(
         "--chroma-dir", default=DEFAULT_CHROMA_DIR, help="ChromaDB persistence directory"
     )
