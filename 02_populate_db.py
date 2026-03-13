@@ -17,6 +17,8 @@ DEFAULT_PERSONALE           =    "2025-2026_data/personale.json"
 DEFAULT_INSEGNAMENTO        =    "2025-2026_data/insegnamenti.json"
 DEFAULT_LEZIONI_DIR         =    "2025-2026_data/schedule_lezioni/"
 DEFAULT_CALENDARIO_AULE_DIR =    "2025-2026_data/schedule_aule/"
+DEFAULT_INFO_AULE           =    "2025-2026_data/info_aule.json"
+
 DEFAULT_DB                  =    "2025-2026_data/university.db"
 
 # ---------------------------------------------------------------------------
@@ -120,7 +122,7 @@ def load_lezioni(lezioni_dir: Path) -> list[dict]:
                 "site_name":              meta.get("site_name"),            # Edificio A
                 "address":                meta.get("address"),              # Piazzale Europa, 1
 
-                "professors":              meta.get("professor"),           # BENATTI FABIO
+                "professors":              meta.get("professors"),           # BENATTI FABIO
                 "cancelled":               meta.get("cancelled", "no"),
                 "url":                     meta.get("url"),
             })
@@ -167,6 +169,32 @@ def load_calendario_aule(calendario_aule_dir: Path) -> list[dict]:
     return rows
 
 
+
+def load_info_aule(path: Path) -> list[dict]:
+
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    entries = data.get("entries", data) if isinstance(data, dict) else data
+
+    rows = []
+    for meta in entries:
+        rows.append({
+            "room_code":            meta.get("room_code"),      # 001_3
+            "room_name":            meta.get("room_name"),      # Aula 2C
+            "site_name":            meta.get("building_name"),  # Edificio H3
+            "site_code":            meta.get("building_code"),  # AH03
+            "address":              meta.get("address"),        # Via Alfonso Valerio, 12/2
+            "floor":                meta.get("floor"),          # Piano2
+            "room_type":            meta.get("room_type"),      # Media
+            "capacity":             meta.get("capacity"),       # 74
+            "accessible":           meta.get("accessible"),     # no
+            "maps_url":             meta.get("maps_url"),
+            "equipment":            json.dumps(meta.get("equipment"), ensure_ascii=False),
+        })
+    return rows
+
+
 # ---------------------------------------------------------------------------
 # Insertion
 # ---------------------------------------------------------------------------
@@ -176,7 +204,8 @@ def insert_data(
     personale_path: Path,
     insegnamento_path: Path,
     lezioni_dir: Path,
-    calendario_aule_dir: Path
+    calendario_aule_dir: Path,
+    info_aule: Path,
 ) -> None:
     if not db_path.exists():
         raise FileNotFoundError(
@@ -243,6 +272,19 @@ def insert_data(
             print(f"[calendario aule]       inserted {len(calendario_aule_rows):>6} rows")
 
 
+        # -- evento_aula --
+        info_aula_rows = load_info_aule(info_aule)
+        if info_aula_rows:
+            con.executemany(
+                """INSERT INTO info_aula
+                   (room_code, room_name, site_name, site_code, address, floor, room_type, capacity, accessible,
+                    maps_url, equipment)
+                   VALUES (:room_code, :room_name, :site_name, :site_code, :address, :floor, :room_type, :capacity, :accessible,
+                           :maps_url, :equipment)""",
+                info_aula_rows,
+            )
+            print(f"[info aula]       inserted {len(info_aula_rows):>6} rows")
+
     con.close()
     print(f"\nData inserted into: {db_path.resolve()}")
 
@@ -254,4 +296,5 @@ if __name__ == "__main__":
         insegnamento_path=Path(DEFAULT_INSEGNAMENTO),
         lezioni_dir=Path(DEFAULT_LEZIONI_DIR),
         calendario_aule_dir=Path(DEFAULT_CALENDARIO_AULE_DIR),
+        info_aule=Path(DEFAULT_INFO_AULE),
     )

@@ -108,6 +108,23 @@ CREATE TABLE IF NOT EXISTS evento_aula (
 );
 """
 
+DDL_INFO_AULA = """
+CREATE TABLE IF NOT EXISTS info_aula (
+    room_code               TEXT PRIMARY KEY,
+
+    room_name               TEXT,
+    site_name               TEXT,
+    site_code               TEXT,
+    address                 TEXT,
+    floor                   TEXT,
+    room_type               TEXT,
+    capacity                TEXT,
+    accessible              TEXT,
+    maps_url                TEXT,
+    equipment               TEXT
+);
+"""
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -122,6 +139,7 @@ def create_schema(db_path: Path) -> None:
         con.execute(DDL_INSEGNAMENTO)
         con.execute(DDL_LEZIONE)
         con.execute(DDL_EVENTO_AULA)
+        con.execute(DDL_INFO_AULA)
 
     con.close()
     print(f"Schema created: {db_path.resolve()}")
