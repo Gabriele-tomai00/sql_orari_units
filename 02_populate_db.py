@@ -10,6 +10,7 @@ Usage:
 """
 
 import json
+import re
 import sqlite3
 from pathlib import Path
 
@@ -22,8 +23,41 @@ DEFAULT_INFO_AULE           =    "2025-2026_data/info_aule.json"
 DEFAULT_DB                  =    "2025-2026_data/university.db"
 
 # ---------------------------------------------------------------------------
-# Loaders
+# Text normalization
 # ---------------------------------------------------------------------------
+
+# Mapping of special apostrophe/quote variants to standard ASCII apostrophe.
+# We then replace the apostrophe itself with a space to avoid SQL issues.
+_APOSTROPHE_VARIANTS = str.maketrans({
+    "\u2019": "'",   # right single quotation mark  →  '
+    "\u2018": "'",   # left single quotation mark   →  '
+    "\u02BC": "'",   # modifier letter apostrophe   →  '
+    "\u0060": "'",   # grave accent                 →  '
+    "\u00B4": "'",   # acute accent                 →  '
+})
+
+def normalize_text(value) -> str | None:
+    """
+    Normalize a text value before inserting into the DB:
+      1. Skip non-string values unchanged (None, int, bool...)
+      2. Strip leading/trailing whitespace
+      3. Normalize all apostrophe variants to standard ASCII apostrophe
+      4. Replace apostrophe with a space  (e.g. "DELL'AMBIENTE" → "DELL AMBIENTE")
+         This avoids SQL quoting issues while preserving searchability for embeddings.
+      5. Collapse multiple spaces into one
+    """
+    if not isinstance(value, str):
+        return value
+
+    value = value.strip()
+    value = value.translate(_APOSTROPHE_VARIANTS)
+    value = value.replace("'", " ")
+    value = re.sub(r" {2,}", " ", value)  # collapse multiple spaces
+    return value
+
+
+# ---------------------------------------------------------------------------
+# Loaders
 
 def load_personale(path: Path) -> list[dict]:
     with open(path, encoding="utf-8") as f:
@@ -35,13 +69,13 @@ def load_personale(path: Path) -> list[dict]:
     for entry in entries:
         meta = entry.get("metadata", {})
         rows.append({
-            "nome_and_surname":     meta.get("nome"),
-            "role":                 meta.get("role"),
-            "department":           meta.get("department"),
-            "department_url":       meta.get("department_url"),
-            "phone":                meta.get("phone"),
-            "email":                meta.get("email"),
-            "last_update":         meta.get("last_updated"),
+            "nome_and_surname":     normalize_text(meta.get("nome")),
+            "role":                 normalize_text(meta.get("role")),
+            "department":           normalize_text(meta.get("department")),
+            "department_url":         meta.get("department_url"),   # URL — do not normalize
+            "phone":                  meta.get("phone"),            # phone number — do not normalize
+            "email":                  meta.get("email"),            # email — do not normalize
+            "last_update":            meta.get("last_updated"),
         })
     return rows
 
@@ -56,22 +90,22 @@ def load_insegnamento(path: Path) -> list[dict]:
     for entry in entries:
         meta = entry.get("metadata", {})
         rows.append({
-            "subject_code":              meta.get("AF_ID"),                         # 535588
+            "subject_code":              meta.get("AF_ID"),                          # 535588
 
-            "degree_program_name":       meta.get("degree_program"),        # "COMPUTER ENGINEERING",
-            "degree_program_name_eng":   meta.get("degree_program_eng"),    # "COMPUTER ENGINEERING"
-            "degree_program_code":       meta.get("degree_program_code"),   # IN23
+            "degree_program_name":       normalize_text(meta.get("degree_program")),     # "COMPUTER ENGINEERING"
+            "degree_program_name_eng":   normalize_text(meta.get("degree_program_eng")), # "COMPUTER ENGINEERING"
+            "degree_program_code":         meta.get("degree_program_code"), # IN23 — code, do not normalize
 
-            "subject_name":              meta.get("course_name"),           # COMPLEXITY AND CRYPTOGRAPHY
-            
-            "study_code":                meta.get("course_code"),           # 504MI
-            "academic_year":             meta.get("academic_year"),
+            "subject_name":              normalize_text(meta.get("course_name")),        # COMPLEXITY AND CRYPTOGRAPHY
 
-            "teams_code":                meta.get("teams_code"),
-            "professors":                meta.get("teacher_name"),
-            "main_professor_id":         meta.get("teacher_id"),
-            "period":                    meta.get("period"),
-            "last_update":               meta.get("last_update"),
+            "study_code":                  meta.get("course_code"),         # 504MI — code, do not normalize
+            "academic_year":               meta.get("academic_year"),
+
+            "teams_code":                  meta.get("teams_code"),          # Teams code — do not normalize
+            "professors":                normalize_text(meta.get("teacher_name")),
+            "main_professor_id":           meta.get("teacher_id"),
+            "period":                      meta.get("period"),              # e.g. "S1" — code, do not normalize
+            "last_update":                 meta.get("last_update"),
         })
     return rows
 
@@ -101,30 +135,30 @@ def load_lezioni(lezioni_dir: Path) -> list[dict]:
         for meta in entries:
 
             rows.append({
-                "subject_code":            meta.get("subject_code"),        # EC535583
+                "subject_code":          meta.get("subject_code"),          # EC535583 — code
 
-                "degree_program_name":     meta.get("degree_program_name"), # "COMPUTER ENGINEERING",
-                "degree_program_code":     meta.get("degree_program_code"), # IN23 or SM20
+                "degree_program_name":   normalize_text(meta.get("degree_program_name")),
+                "degree_program_code":     meta.get("degree_program_code"), # IN23 — code
 
-                "subject_name":            meta.get("subject_name"),        # ADVANCED INTERNET TECHNOLOGIES
+                "subject_name":          normalize_text(meta.get("subject_name")),
 
-                "study_year_code":         meta.get("study_year_code"),     # IN23+1+|1
-                "curriculum":              meta.get("curriculum"),
+                "study_year_code":         meta.get("study_year_code"),     # IN23+1+|1 — code
+                "curriculum":            normalize_text(meta.get("curriculum")),
 
-                "date":                    meta.get("date"),
-                "start_time":              meta.get("start_time"),
+                "date":                    meta.get("date"),                # ISO date — do not normalize
+                "start_time":              meta.get("start_time"),          # HH:MM — do not normalize
                 "end_time":                meta.get("end_time"),
-                "department":              meta.get("department"),          # DipartimentodiFisica
+                "department":            normalize_text(meta.get("department")),
 
-                "room_code":              meta.get("room_code"),            # 035_2
-                "room_name":              meta.get("room_name"),            # Aula B
-                "site_code":              meta.get("site_code"),            # AA01  
-                "site_name":              meta.get("site_name"),            # Edificio A
-                "address":                meta.get("address"),              # Piazzale Europa, 1
+                "room_code":               meta.get("room_code"),           # 035_2 — code
+                "room_name":             normalize_text(meta.get("room_name")),
+                "site_code":               meta.get("site_code"),           # AA01 — code
+                "site_name":             normalize_text(meta.get("site_name")),
+                "address":               normalize_text(meta.get("address")),
 
-                "professors":              meta.get("professors"),           # BENATTI FABIO
+                "professors":            normalize_text(meta.get("professors")),
                 "cancelled":               meta.get("cancelled", "no"),
-                "url":                     meta.get("url"),
+                "url":                     meta.get("url"),                 # URL — do not normalize
             })
 
     print(f"[lezione]       loaded {len(rows):>6} rows from {len(json_files)} file(s)")
@@ -148,26 +182,24 @@ def load_calendario_aule(calendario_aule_dir: Path) -> list[dict]:
         with open(json_file, encoding="utf-8") as f:
             data = json.load(f)
 
-        # Each file is a list of event entries
         entries = data if isinstance(data, list) else data.get("entries", [])
 
         for entry in entries:
             rows.append({
-                "site_code":    entry.get("site_code"),
-                "room_code":    entry.get("room_code"),
-                "site_name":    entry.get("site_name"),
-                "room_name":    entry.get("room_name"),
-                "date":         entry.get("date"),
-                "last_update":  entry.get("last_update"),
-                "start_time":   entry.get("start_time"),
-                "end_time":     entry.get("end_time"),
-                "name_event":   entry.get("name_event"),
-                "professors":   entry.get("professors"),
+                "site_code":     entry.get("site_code"),            # code
+                "room_code":     entry.get("room_code"),            # code
+                "site_name":   normalize_text(entry.get("site_name")),
+                "room_name":   normalize_text(entry.get("room_name")),
+                "date":          entry.get("date"),                 # ISO date
+                "last_update":   entry.get("last_update"),
+                "start_time":    entry.get("start_time"),           # HH:MM
+                "end_time":      entry.get("end_time"),
+                "name_event":  normalize_text(entry.get("name_event")),
+                "professors":  normalize_text(entry.get("professors")),
             })
 
     print(f"[calendario aule]       loaded {len(rows):>6} rows from {len(json_files)} file(s)")
     return rows
-
 
 
 def load_info_aule(path: Path) -> list[dict]:
@@ -179,19 +211,24 @@ def load_info_aule(path: Path) -> list[dict]:
 
     rows = []
     for meta in entries:
+        # Normalize equipment string values but keep the JSON structure intact
+        equipment = meta.get("equipment")
+        if isinstance(equipment, dict):
+            equipment = {k: normalize_text(v) if isinstance(v, str) else v for k, v in equipment.items()}
+
         rows.append({
-            "room_code":            meta.get("room_code"),      # 001_3
-            "room_name":            meta.get("room_name"),      # Aula 2C
-            "site_name":            meta.get("site_name"),      # Edificio H3
-            "site_code":            meta.get("site_code"),      # AH03
-            "address":              meta.get("address"),        # Via Alfonso Valerio, 12/2
-            "floor":                meta.get("floor"),          # Piano2
-            "room_type":            meta.get("room_type"),      # Media
-            "capacity":             meta.get("capacity"),       # 74
-            "accessible":           meta.get("accessible"),     # no
-            "maps_url":             meta.get("maps_url"),
-            "equipment":            json.dumps(meta.get("equipment"), ensure_ascii=False),
-            "url":                  meta.get("url")
+            "room_code":     meta.get("room_code"),         # 001_3 — code
+            "room_name":   normalize_text(meta.get("room_name")),
+            "site_name":   normalize_text(meta.get("site_name")),
+            "site_code":     meta.get("site_code"),         # AH03 — code
+            "address":     normalize_text(meta.get("address")),
+            "floor":       normalize_text(meta.get("floor")),
+            "room_type":   normalize_text(meta.get("room_type")),
+            "capacity":      meta.get("capacity"),          # integer — do not normalize
+            "accessible":    meta.get("accessible"),        # bool — do not normalize
+            "maps_url":      meta.get("maps_url"),          # URL — do not normalize
+            "equipment":     json.dumps(equipment, ensure_ascii=False),
+            "url":           meta.get("url"),               # URL — do not normalize
         })
     return rows
 
@@ -272,8 +309,7 @@ def insert_data(
             )
             print(f"[calendario aule]       inserted {len(calendario_aule_rows):>6} rows")
 
-
-        # -- evento_aula --
+        # -- info_aula --
         info_aula_rows = load_info_aule(info_aule)
         if info_aula_rows:
             con.executemany(
