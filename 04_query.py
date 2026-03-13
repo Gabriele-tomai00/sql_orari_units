@@ -42,39 +42,68 @@ DEFAULT_CHROMA_DIR = "2025-2026_data/chroma_store"
 # ---------------------------------------------------------------------------
 
 TEXT_TO_SQL_PROMPT = PromptTemplate(
-    "You are a university assistant for the University of Trieste (UniTS).\n"
-    "Given the database schema and the user's question, generate a correct SQLite SQL query.\n"
+"Sei un assistente universitario per l'Università degli Studi di Trieste (UniTS).\n"
+    "Dato lo schema del database e la domanda dell'utente, genera una query SQL SQLite corretta.\n"
     "\n"
-    "Rules:\n"
-    "- Use only column names that appear in the provided schema."
-    " - When the question does not specify a limit, return at most 40 rows using LIMIT."
-    "- Always use UPPER() or LIKE when comparing text columns\n"
-    "- Dates in the database are stored in ISO format YYYY-MM-DD, "
-    "- Never filter by academic_year or period unless explicitly requested\n"
-    "- If the question concerns lesson schedules or lesson dates, use the 'lezione' table\n"
-    "- If the question concerns a classroom, search in the 'evento_aula' table (this is the classroom occupancy calendar) "
-    "and if nothing is found try searching in the 'lezione' table\n"
-    "- If the question concerns who teaches a course or the Teams code, use the 'insegnamento' table\n"
-    "- If the question concerns information about a person (email, role, department), use the 'personale' table\n"
-    "- Do not perform SQL joins because the columns are often not normalized (except for ISO date format and times). "
-    "Instead search in different tables, first in one and then in another "
-    "(for example find an event in 'evento_aula' and if the user wants more information, search by date, time and classroom "
-    "(note that the name might be slightly different) in 'lezione')\n"
-    "- For queries over an entire week or a date range, use SELECT with only the essential columns: "
-    "date, start_time, end_time, subject_name, room_name, building_name, url. "
-    "Do not use SELECT * for queries that could return many rows.\n"
-    "- There are no relationships between tables due to non-normalized data\n"
-    "- Always respond in Italian in the final synthesis phase\n"
-    "- If the question refers to a relative date (for example today, yesterday, tomorrow...), "
-    "when answering also include the explicit date in the appropriate format\n"
+    "Regole:\n"
+    "- Usa solo i nomi di colonne presenti nello schema fornito."
+    " - Quando la domanda non specifica un limite, restituisci al massimo 40 righe usando LIMIT."
+    "- Usa sempre UPPER() o LIKE quando confronti colonne di testo\n"
+    "- Le date nel database sono memorizzate in formato ISO YYYY-MM-DD, "
+    "- Non filtrare mai per anno_accademico o periodo a meno che non venga esplicitamente richiesto\n"
+    "- Se la domanda riguarda gli orari delle lezioni o le date delle lezioni, usa la tabella 'lezione'\n"
+    "- Se la domanda riguarda un'aula, cerca nella tabella 'evento_aula' (questo è il calendario di occupazione delle aule) "
+    "e se non trovi nulla prova a cercare nella tabella 'lezione'\n"
+    "- Se la domanda riguarda chi insegna un corso o il codice Teams, usa la tabella 'insegnamento'\n"
+    "- Se la domanda riguarda informazioni su una persona (email, ruolo, dipartimento), usa la tabella 'personale'\n"
+    "- Non eseguire JOIN SQL perché le colonne spesso non sono normalizzate (eccetto il formato ISO per date e orari). "
+    "Cerca invece in tabelle diverse, prima in una e poi in un'altra "
+    "(ad esempio trova un evento in 'evento_aula' e se l'utente vuole più informazioni, cerca per data, ora e aula "
+    "(nota che il nome potrebbe essere leggermente diverso) in 'lezione')\n"
+    "- Per query su un'intera settimana o un intervallo di date, usa SELECT con solo le colonne essenziali: "
+    "data, ora_inizio, ora_fine, nome_materia, nome_aula, nome_edificio, url. "
+    "Non usare SELECT * per query che potrebbero restituire molte righe.\n"
+    "- Non esistono relazioni tra le tabelle a causa di dati non normalizzati\n"
+    "- Rispondi sempre in italiano nella fase di sintesi finale\n"
+    "- Se la domanda fa riferimento a una data relativa (ad esempio oggi, ieri, domani...), "
+    "nella risposta includi anche la data esplicita nel formato appropriato\n"
     "\n"
-    "Available schema:\n"
+    "Schema disponibile:\n"
     "{schema}\n"
     "\n"
-    "Question: {query_str}\n"
+    "Domanda: {query_str}\n"
     "\n"
-    "SQL (only the query, no comments):"
+    "SQL (solo la query, senza commenti):"
 )
+
+
+class LoggingRetriever:
+    """
+    Wraps a LlamaIndex retriever and logs the nodes it returns,
+    showing what DB values were matched for the user query.
+    """
+
+    def __init__(self, inner_retriever, column_label: str):
+        self._inner = inner_retriever
+        self._label = column_label
+
+    def retrieve(self, query: str):
+        nodes = self._inner.retrieve(query)
+        if nodes:
+            print(f"\n  [COLUMN RETRIEVER — {self._label}]")
+            print(f"  Query : '{query}'")
+            print(f"  Matches ({len(nodes)}):")
+            for i, n in enumerate(nodes, 1):
+                score = f"{n.score:.4f}" if n.score is not None else "n/a"
+                print(f"    {i}. '{n.node.get_content()}' (score: {score})")
+        else:
+            print(f"\n  [COLUMN RETRIEVER — {self._label}] No matches for '{query}'")
+        return nodes
+
+    # Proxy all other attribute accesses to the inner retriever
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
 
 # ---------------------------------------------------------------------------
 # Load a persisted ChromaDB collection as a LlamaIndex retriever
@@ -83,23 +112,21 @@ TEXT_TO_SQL_PROMPT = PromptTemplate(
 def load_column_retriever(
     collection_name: str,
     chroma_client: chromadb.PersistentClient,
-    similarity_top_k: int = 3,
-):
-    """
-    Loads an existing Chroma collection and returns a retriever.
-    Raises ValueError if the collection does not exist (run 03_build_index.py first).
-    """
+    top_k: int = 3,
+    label: str = "",
+) -> LoggingRetriever:
     try:
         chroma_collection = chroma_client.get_collection(collection_name)
     except Exception as exc:
         raise ValueError(
-            f"Collection '{collection_name}' not found in ChromaDB. "
-            "Run 03_build_index.py first."
+            f"Collection '{collection_name}' not found. Run 03_build_index.py first."
         ) from exc
 
     vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
     index = VectorStoreIndex.from_vector_store(vector_store)
-    return index.as_retriever(similarity_top_k=similarity_top_k)
+    retriever = index.as_retriever(similarity_top_k=top_k)
+    return LoggingRetriever(retriever, label or collection_name)
+
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +137,7 @@ def build_query_engine(db_path: Path, chroma_dir: Path):
     engine = create_engine(f"sqlite:///{db_path}")
     sql_database = SQLDatabase(
         engine,
-        include_tables=["personale", "insegnamento", "lezione", "evento_aula"],
+        include_tables=["personale", "insegnamento", "lezione", "evento_aula", "info_aula"],
     )
 
     # --- Table schema index (in-memory) ---
@@ -176,13 +203,32 @@ SQLTableSchema(
 
                 "room_name (classroom like Aula 301) and  site_name (building like Edificio Gorizia), "
                 "room_code and site_code are the relatives ID of the room and site/building"
-                "room_code and site_code are the relatives ID of the room and site/building"
 
                 "name_event (event or activity name), "
                 "date (iso format), "
                 "start_time (event start, e.g. '10:00'), "
                 "end_time (event end, e.g. '13:00'), "
                 "professors (professors or persons involved), "
+            ),
+        ),
+        SQLTableSchema(
+            table_name="info_aula",
+            context_str=(
+                "Contains static info about a classrom. "
+                "Use for questions about: where is the room, how big it is"
+                "is there wifi in that room. "
+                "Key columns: "
+
+                "room_name (classroom like Aula 301) and  site_name (building like Edificio Gorizia), "
+                "room_code and site_code are the relatives ID of the room and site/building"
+
+                "floor of the building, "
+                "room_type (if it's considered small, big, if it's aula magna...), "
+                "capacity (how many students can stay there) "
+                "accessible (it's not about disability. If no maybe there are work in progress, specify only it the value is no) "
+                "maps_url (you can see on google maps the position of the building where the room is), "
+                "equipment (if there is wifi, Proiettore, lavagne...), "
+                "url (url with more info about the room)"
             ),
         ),
     ]
@@ -197,82 +243,44 @@ SQLTableSchema(
     chroma_client = chromadb.PersistentClient(path=str(chroma_dir))
 
     cols_retrievers = {
-            "personale": {
-                "nome_and_surname": load_column_retriever(
-                    "personale__nome_and_surname", chroma_client, similarity_top_k=5
-                ),
-                "role": load_column_retriever(
-                    "personale__role", chroma_client, similarity_top_k=5
-                ),
-                "department": load_column_retriever(
-                    "personale__department", chroma_client, similarity_top_k=5
-                ),
-            },
+        "personale": {
+            "nome_and_surname": load_column_retriever("personale__nome_and_surname", chroma_client, top_k=5),
+            "role":             load_column_retriever("personale__role",             chroma_client, top_k=5),
+            "department":       load_column_retriever("personale__department",       chroma_client, top_k=5),
+        },
+        "insegnamento": {
+            "degree_program_name":     load_column_retriever("insegnamento__degree_program_name",     chroma_client, top_k=5),
+            "degree_program_name_eng": load_column_retriever("insegnamento__degree_program_name_eng", chroma_client, top_k=5),
+            "subject_name":            load_column_retriever("insegnamento__subject_name",            chroma_client, top_k=5),
+            "professors":              load_column_retriever("insegnamento__professors",              chroma_client, top_k=5),
+            "period":                  load_column_retriever("insegnamento__period",                  chroma_client, top_k=1),
+        },
+        "lezione": {
+            "degree_program_name": load_column_retriever("lezione__degree_program_name", chroma_client, top_k=5),
+            "subject_name":        load_column_retriever("lezione__subject_name",        chroma_client, top_k=5),
+            "study_year_code":     load_column_retriever("lezione__study_year_code",     chroma_client, top_k=5),
+            "curriculum":          load_column_retriever("lezione__curriculum",          chroma_client, top_k=5),
+            "date":                load_column_retriever("lezione__date",                chroma_client, top_k=1),
+            "department":          load_column_retriever("lezione__department",          chroma_client, top_k=5),
+            "room_name":           load_column_retriever("lezione__room_name",           chroma_client, top_k=5),
+            "site_name":           load_column_retriever("lezione__site_name",           chroma_client, top_k=5),
+            "address":             load_column_retriever("lezione__address",             chroma_client, top_k=5),
+            "professors":          load_column_retriever("lezione__professors",          chroma_client, top_k=5),
+        },
+        "evento_aula": {
+            "site_name":  load_column_retriever("evento_aula__site_name",  chroma_client, top_k=5),
+            "room_name":  load_column_retriever("evento_aula__room_name",  chroma_client, top_k=5),
+            "name_event": load_column_retriever("evento_aula__name_event", chroma_client, top_k=5),
+            "professors": load_column_retriever("evento_aula__professors", chroma_client, top_k=5),
+        },
+        "info_aula": {
+            "site_name":    load_column_retriever("info_aula__site_name",  chroma_client, top_k=5),
+            "room_name":    load_column_retriever("info_aula__room_name",  chroma_client, top_k=5),
+            "address":      load_column_retriever("info_aula__address", chroma_client, top_k=5),
+            "floor":        load_column_retriever("info_aula__floor", chroma_client, top_k=5),
+            "room_type":    load_column_retriever("info_aula__room_type", chroma_client, top_k=5),
 
-            "insegnamento": {
-                "degree_program_name": load_column_retriever(
-                    "insegnamento__degree_program_name", chroma_client, similarity_top_k=5
-                ),
-                "degree_program_name_eng": load_column_retriever(
-                    "insegnamento__degree_program_name_eng", chroma_client, similarity_top_k=5
-                ),
-                "subject_name": load_column_retriever(
-                    "insegnamento__subject_name", chroma_client, similarity_top_k=5
-                ),
-                "professors": load_column_retriever(
-                    "insegnamento__professors", chroma_client, similarity_top_k=5
-                ),
-                "period": load_column_retriever(
-                    "insegnamento__period", chroma_client, similarity_top_k=1
-                ),
-            },
-
-            "lezione": {
-                "degree_program_name": load_column_retriever(
-                    "lezione__degree_program_name", chroma_client, similarity_top_k=5
-                ),
-                "subject_name": load_column_retriever(
-                    "lezione__subject_name", chroma_client, similarity_top_k=5
-                ),
-                "study_year_code": load_column_retriever(
-                    "lezione__study_year_code", chroma_client, similarity_top_k=5
-                ),
-                "curriculum": load_column_retriever(
-                    "lezione__curriculum", chroma_client, similarity_top_k=5
-                ),
-                "date": load_column_retriever(
-                    "lezione__date", chroma_client, similarity_top_k=1
-                ),
-                "department": load_column_retriever(
-                    "lezione__department", chroma_client, similarity_top_k=5
-                ),
-                "room_name": load_column_retriever(
-                    "lezione__room_name", chroma_client, similarity_top_k=5
-                ),
-                "site_name": load_column_retriever(
-                    "lezione__site_name", chroma_client, similarity_top_k=5
-                ),
-                "address": load_column_retriever(
-                    "lezione__address", chroma_client, similarity_top_k=5
-                ),
-                "professors": load_column_retriever(
-                    "lezione__professors", chroma_client, similarity_top_k=5
-                ),
-            },
-            "evento_aula": {
-                "site_name": load_column_retriever(
-                    "evento_aula__site_name", chroma_client, similarity_top_k=5
-                ),
-                "room_name": load_column_retriever(
-                    "evento_aula__room_name", chroma_client, similarity_top_k=5
-                ),
-                "name_event": load_column_retriever(
-                    "evento_aula__name_event", chroma_client, similarity_top_k=5
-                ),
-                "professors": load_column_retriever(
-                    "evento_aula__professors", chroma_client, similarity_top_k=5
-                ),
-            },
+        },
     }
 
     query_engine = SQLTableRetrieverQueryEngine(
@@ -280,7 +288,7 @@ SQLTableSchema(
         obj_index.as_retriever(similarity_top_k=5),
         cols_retrievers=cols_retrievers,
         llm=Settings.llm,                          # always use the globally configured LLM
-        text_to_sql_prompt=TEXT_TO_SQL_PROMPT,     # custom prompt with UniTS-specific rules
+        #text_to_sql_prompt=TEXT_TO_SQL_PROMPT,     # custom prompt with UniTS-specific rules
     )
 
     return query_engine
@@ -318,8 +326,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="University NL query engine")
     parser.add_argument("--query", default=None, help="Single query (non-interactive)")
     args = parser.parse_args()
-
+        
     qe = build_query_engine(Path(DEFAULT_DB), Path(DEFAULT_CHROMA_DIR))
+
 
     if args.query:
         response = qe.query(args.query)

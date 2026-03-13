@@ -94,44 +94,30 @@ def build_all_indexes(db_path: Path, chroma_dir: Path) -> None:
 
 # ----------- INSEGNAMENTO ---------------
 
-    # --- insegnamento.degree_program_name ---
     print("\nBuilding index: insegnamento.degree_program_name")
     rows = con.execute(
         "SELECT DISTINCT degree_program_name FROM insegnamento WHERE degree_program_name IS NOT NULL"
     ).fetchall()
     build_column_index([r[0] for r in rows], "insegnamento__degree_program_name", chroma_client)
 
-    # --- insegnamento.degree_program_name_eng ---
     print("\nBuilding index: insegnamento.degree_program_name_eng")
     rows = con.execute(
         "SELECT DISTINCT degree_program_name_eng FROM insegnamento WHERE degree_program_name_eng IS NOT NULL"
     ).fetchall()
     build_column_index([r[0] for r in rows], "insegnamento__degree_program_name_eng", chroma_client)
 
-    # --- insegnamento.subject_name ---
     print("\nBuilding index: insegnamento.subject_name")
     rows = con.execute(
         "SELECT DISTINCT subject_name FROM lezione WHERE subject_name IS NOT NULL"
     ).fetchall()
     build_column_index([r[0] for r in rows], "insegnamento__subject_name", chroma_client)
 
-    # --- insegnamento.professors ---
     print("\nBuilding index: insegnamento.professors")
     rows = con.execute(
         "SELECT DISTINCT professors FROM insegnamento WHERE professors IS NOT NULL"
     ).fetchall()
     build_column_index([r[0] for r in rows], "insegnamento__professors", chroma_client)
 
-    # # --- insegnamento.academic_year ---
-    # # Handles user input like "2025-2026" or "anno scorso" → exact DB value
-    # print("\nBuilding index: insegnamento.academic_year")
-    # rows = con.execute(
-    #     "SELECT DISTINCT academic_year FROM insegnamento WHERE academic_year IS NOT NULL"
-    # ).fetchall()
-    # build_column_index([r[0] for r in rows], "insegnamento__academic_year", chroma_client)
-
-    # --- insegnamento.period ---
-    # Handles user input like "primo semestre" or "semestre 1" → "S1"
     print("\nBuilding index: insegnamento.period")
     rows = con.execute(
         "SELECT DISTINCT period FROM insegnamento WHERE period IS NOT NULL"
@@ -157,7 +143,7 @@ def build_all_indexes(db_path: Path, chroma_dir: Path) -> None:
     rows = con.execute(
         "SELECT DISTINCT study_year_code FROM lezione WHERE study_year_code IS NOT NULL"
     ).fetchall()
-    build_column_index([r[0] for r in rows], "lezione__study_year_code", chroma_client)
+    build_column_index([r[0] for r in rows], "lezione__cstudy_year_code", chroma_client)
 
     print("\nBuilding index: lezione.curriculum")
     rows = con.execute(
@@ -204,34 +190,61 @@ def build_all_indexes(db_path: Path, chroma_dir: Path) -> None:
 
 # ------------ EVENTO AULA ---------------
 
-    # --- evento_aula.site_name ---
     print("\nBuilding index: evento_aula.site_name")
     rows = con.execute(
         "SELECT DISTINCT site_name FROM evento_aula WHERE site_name IS NOT NULL"
     ).fetchall()
     build_column_index([r[0] for r in rows], "evento_aula__site_name", chroma_client)
 
-    # --- evento_aula.room_name ---
     print("\nBuilding index: evento_aula.room_name")
     rows = con.execute(
         "SELECT DISTINCT room_name FROM evento_aula WHERE room_name IS NOT NULL"
     ).fetchall()
     build_column_index([r[0] for r in rows], "evento_aula__room_name", chroma_client)
 
-    # --- evento_aula.study_course ---
     print("\nBuilding index: evento_aula.name_event")
     rows = con.execute(
         "SELECT DISTINCT name_event FROM evento_aula WHERE name_event IS NOT NULL"
     ).fetchall()
     build_column_index([r[0] for r in rows], "evento_aula__name_event", chroma_client) 
 
-    # --- evento_aula.professors ---
     print("\nBuilding index: evento_aula.professors")
     rows = con.execute(
         "SELECT DISTINCT professors FROM evento_aula WHERE professors IS NOT NULL"
     ).fetchall()
     build_column_index([r[0] for r in rows], "evento_aula__professors", chroma_client)
 
+# ------------ INFO AULA ---------------
+
+    print("\nBuilding index: info_aula.site_name")
+    rows = con.execute(
+        "SELECT DISTINCT site_name FROM info_aula WHERE site_name IS NOT NULL"
+    ).fetchall()
+    build_column_index([r[0] for r in rows], "info_aula__site_name", chroma_client)
+
+    print("\nBuilding index: info_aula.room_name")
+    rows = con.execute(
+        "SELECT DISTINCT room_name FROM info_aula WHERE room_name IS NOT NULL"
+    ).fetchall()
+    build_column_index([r[0] for r in rows], "info_aula__room_name", chroma_client)
+
+    print("\nBuilding index: info_aula.address")
+    rows = con.execute(
+        "SELECT DISTINCT address FROM info_aula WHERE address IS NOT NULL"
+    ).fetchall()
+    build_column_index([r[0] for r in rows], "info_aula__address", chroma_client)
+
+    print("\nBuilding index: info_aula.floor")
+    rows = con.execute(
+        "SELECT DISTINCT floor FROM info_aula WHERE floor IS NOT NULL"
+    ).fetchall()
+    build_column_index([r[0] for r in rows], "info_aula__floor", chroma_client)
+
+    print("\nBuilding index: info_aula.room_type")
+    rows = con.execute(
+        "SELECT DISTINCT room_type FROM info_aula WHERE room_type IS NOT NULL"
+    ).fetchall()
+    build_column_index([r[0] for r in rows], "info_aula__room_type", chroma_client)
 
     con.close()
     print(f"\nAll indexes persisted to: {chroma_dir.resolve()}")

@@ -182,8 +182,8 @@ def load_info_aule(path: Path) -> list[dict]:
         rows.append({
             "room_code":            meta.get("room_code"),      # 001_3
             "room_name":            meta.get("room_name"),      # Aula 2C
-            "site_name":            meta.get("building_name"),  # Edificio H3
-            "site_code":            meta.get("building_code"),  # AH03
+            "site_name":            meta.get("site_name"),      # Edificio H3
+            "site_code":            meta.get("site_code"),      # AH03
             "address":              meta.get("address"),        # Via Alfonso Valerio, 12/2
             "floor":                meta.get("floor"),          # Piano2
             "room_type":            meta.get("room_type"),      # Media
@@ -191,6 +191,7 @@ def load_info_aule(path: Path) -> list[dict]:
             "accessible":           meta.get("accessible"),     # no
             "maps_url":             meta.get("maps_url"),
             "equipment":            json.dumps(meta.get("equipment"), ensure_ascii=False),
+            "url":                  meta.get("url")
         })
     return rows
 

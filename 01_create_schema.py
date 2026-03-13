@@ -119,9 +119,10 @@ CREATE TABLE IF NOT EXISTS info_aula (
     floor                   TEXT,
     room_type               TEXT,
     capacity                TEXT,
-    accessible              TEXT,
+    accessible              BOOL,
     maps_url                TEXT,
-    equipment               TEXT
+    equipment               TEXT,
+    url                     TEXT
 );
 """
 
