@@ -5,8 +5,9 @@ venv/
 
 
 chroma_store/
+2025-2026_data/
 notes.txt
 
-2025-2026_data/schedule_lezioni/
 
 .DS_Store
+.chainlit/
