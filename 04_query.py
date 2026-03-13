@@ -6,15 +6,18 @@ Natural Language → SQL → Answer pipeline for the university database.
 Uses:
   - LlamaIndex SQLTableRetrieverQueryEngine
   - ChromaDB (persistent) for column-level fuzzy value matching
+  - Dynamic table routing: column retrievers are applied only to tables
+    that are semantically relevant to the user query (two-stage retrieval)
 
 Flow:
   1. User query arrives in natural language
-  2. Column retrievers scan Chroma indexes to find the best-matching
-     DB values (e.g. "ingegneria informatica" → "Ingegneria Elettronica e Informatica")
-  3. Those values are injected as context hints for the LLM
-  4. LLM generates the correct SQL query
-  5. SQL is executed against the SQLite DB
-  6. LLM synthesizes the final natural language answer
+  2. [Stage 1] Table router selects the 1-2 most relevant tables
+  3. [Stage 2] Column retrievers run ONLY on those tables to find
+     the best-matching DB values (e.g. "informatica" → "INGEGNERIA INFORMATICA")
+  4. Those values are injected as context hints for the LLM
+  5. LLM generates the correct SQL query
+  6. SQL is executed against the SQLite DB
+  7. LLM synthesizes the final natural language answer
 
 Usage:
     python 04_query.py
@@ -29,6 +32,7 @@ from llama_index.core import Settings, SQLDatabase, StorageContext, VectorStoreI
 from llama_index.core.indices.struct_store.sql_query import SQLTableRetrieverQueryEngine
 from llama_index.core.objects import ObjectIndex, SQLTableNodeMapping, SQLTableSchema
 from llama_index.core.prompts import PromptTemplate
+from llama_index.core.schema import TextNode
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from sqlalchemy import create_engine
 
@@ -36,6 +40,41 @@ from index_utils import *
 
 DEFAULT_DB = "2025-2026_data/university.db"
 DEFAULT_CHROMA_DIR = "2025-2026_data/chroma_store"
+
+# ---------------------------------------------------------------------------
+# Table router — semantic description used to pick relevant tables per query
+# ---------------------------------------------------------------------------
+
+# Each entry describes the domain of the table in natural language.
+# The table router embeds these descriptions and finds the closest ones
+# to the user query, so only those tables' column retrievers are used.
+TABLE_DOMAINS = {
+    "personale": (
+        "staff person professor docente employee contact "
+        "personale nome email phone telefono ruolo dipartimento"
+    ),
+    "insegnamento": (
+        "course insegnamento subject materia degree laurea professor docente "
+        "teams code codice periodo semestre academic year anno accademico"
+    ),
+    "lezione": (
+        "lesson lecture lezione schedule orario timetable "
+        "quando date data ora start end aula edificio cancelled annullata "
+        "subject materia professor docente degree"
+    ),
+    "evento_aula": (
+        "event evento booking prenotazione aula room occupancy occupazione "
+        "calendar calendario edificio building schedule orario"
+    ),
+    "info_aula": (
+        "classroom aula room info details dettagli building edificio "
+        "floor piano capacity capienza equipment attrezzature wifi "
+        "proiettore accessible accessibile maps mappa indirizzo address"
+    ),
+}
+
+# How many tables to select per query (increase to 3 for cross-table queries)
+TABLE_ROUTER_TOP_K = 2
 
 # ---------------------------------------------------------------------------
 # Global prompt — rules for SQL generation applied to all tables
@@ -77,6 +116,10 @@ TEXT_TO_SQL_PROMPT = PromptTemplate(
 )
 
 
+# ---------------------------------------------------------------------------
+# Logging wrapper for column retrievers
+# ---------------------------------------------------------------------------
+
 class LoggingRetriever:
     """
     Wraps a LlamaIndex retriever and logs the nodes it returns,
@@ -100,7 +143,6 @@ class LoggingRetriever:
             print(f"\n  [COLUMN RETRIEVER — {self._label}] No matches for '{query}'")
         return nodes
 
-    # Proxy all other attribute accesses to the inner retriever
     def __getattr__(self, name):
         return getattr(self._inner, name)
 
@@ -128,25 +170,100 @@ def load_column_retriever(
     return LoggingRetriever(retriever, label or collection_name)
 
 
+# ---------------------------------------------------------------------------
+# Table router — selects relevant tables for a given query
+# ---------------------------------------------------------------------------
+
+def build_table_router(embed_model) -> VectorStoreIndex:
+    """
+    Builds an in-memory VectorStoreIndex over TABLE_DOMAINS descriptions.
+    Used at query time to select which tables are relevant.
+    Each node carries the table name in its metadata.
+    """
+    nodes = [
+        TextNode(text=description, metadata={"table": table_name})
+        for table_name, description in TABLE_DOMAINS.items()
+    ]
+    return VectorStoreIndex(nodes, embed_model=embed_model)
+
+
+def route_tables(query: str, table_router_index: VectorStoreIndex) -> list[str]:
+    """
+    Returns the list of table names most relevant to the query.
+    Prints routing decisions for transparency.
+    """
+    retriever = table_router_index.as_retriever(similarity_top_k=TABLE_ROUTER_TOP_K)
+    matched = retriever.retrieve(query)
+    selected = [n.metadata["table"] for n in matched]
+
+    print(f"\n  [TABLE ROUTER] Query: '{query}'")
+    for n in matched:
+        score = f"{n.score:.4f}" if n.score is not None else "n/a"
+        print(f"    → {n.metadata['table']} (score: {score})")
+
+    return selected
+
+
+# ---------------------------------------------------------------------------
+# Routed query engine — wraps SQLTableRetrieverQueryEngine with dynamic routing
+# ---------------------------------------------------------------------------
+
+class RoutedSQLQueryEngine:
+    """
+    At each query:
+      1. Routes the query to the 1-2 most relevant tables (table router)
+      2. Passes only those tables' column retrievers to a fresh
+         SQLTableRetrieverQueryEngine instance
+      3. Delegates query execution to that engine
+
+    Re-creating SQLTableRetrieverQueryEngine per query is cheap —
+    it is a plain Python object with no re-embedding cost.
+    """
+
+    def __init__(self, sql_database, obj_index, all_cols_retrievers, table_router_index):
+        self._sql_database = sql_database
+        self._obj_index = obj_index
+        self._all_cols_retrievers = all_cols_retrievers
+        self._table_router_index = table_router_index
+
+    def query(self, query_str: str):
+        # Stage 1: select relevant tables
+        relevant_tables = route_tables(query_str, self._table_router_index)
+
+        # Stage 2: filter cols_retrievers to selected tables only
+        routed_cols = {
+            table: (
+                self._all_cols_retrievers[table] if table in relevant_tables else {}
+            )
+            for table in self._all_cols_retrievers
+        }
+
+        # Build a fresh engine with only the relevant column retrievers
+        engine = SQLTableRetrieverQueryEngine(
+            self._sql_database,
+            self._obj_index.as_retriever(similarity_top_k=5),
+            cols_retrievers=routed_cols,
+            llm=Settings.llm,
+            #text_to_sql_prompt=TEXT_TO_SQL_PROMPT,
+        )
+        return engine.query(query_str)
+
 
 # ---------------------------------------------------------------------------
 # Build the full query engine
 # ---------------------------------------------------------------------------
 
-def build_query_engine(db_path: Path, chroma_dir: Path):
+def build_query_engine(db_path: Path, chroma_dir: Path) -> RoutedSQLQueryEngine:
     engine = create_engine(f"sqlite:///{db_path}")
     sql_database = SQLDatabase(
         engine,
         include_tables=["personale", "insegnamento", "lezione", "evento_aula", "info_aula"],
     )
 
-    # --- Table schema index (in-memory) ---
-    # context_str is critical: the table retriever uses it to decide
-    # which table to query. Words here must match the user's natural language.
+    # --- Table schema index (used by SQLTableRetrieverQueryEngine internally) ---
     table_node_mapping = SQLTableNodeMapping(sql_database)
     table_schema_objs = [
-
-SQLTableSchema(
+        SQLTableSchema(
             table_name="personale",
             context_str=(
                 "Contains university staff and professors. "
@@ -161,15 +278,15 @@ SQLTableSchema(
                 "Teams code of a course, degree program, academic year, semester period. "
                 "Key columns: "
                 "subject_name (course name), "
-                "professors (professor names, can be more then one) and the relative main_professor_id"
-                "degree_program_name and"
+                "professors (professor names, can be more then one) and the relative main_professor_id, "
+                "degree_program_name and "
                 "degree_program_name_eng (official degree program name in English), "
                 "degree_program_code (e.g. 'IN22'), "
-                "academic_year (e.g. '2025/2026' but take into accout the user can write for exemple 2025-2026), "
+                "academic_year (e.g. '2025/2026' but take into account the user can write for example 2025-2026), "
                 "period (semester: 'S1' = first, 'S2' = second), "
                 "teams_code (Microsoft Teams code), "
-                "study_code (course code, e.g. '472MI-1')."
-                "last_update of these information"
+                "study_code (course code, e.g. '472MI-1'). "
+                "last_update of these information."
             ),
         ),
         SQLTableSchema(
@@ -185,8 +302,8 @@ SQLTableSchema(
                 "start_time (lesson start, e.g. '10:00'), "
                 "end_time (lesson end, e.g. '13:00'), "
                 "department, "
-                "room_name (classroom like Aula 301) and  site_name (building like Edificio Gorizia), "
-                "room_code and site_code are the relatives ID of the room and site/building"
+                "room_name (classroom like Aula 301) and site_name (building like Edificio Gorizia), "
+                "room_code and site_code are the relative IDs of the room and site/building, "
                 "professors (professor names, may contain multiple separated by comma), "
                 "degree_program_name (degree program name), "
                 "degree_program_code (e.g. 'IN22'), "
@@ -200,35 +317,31 @@ SQLTableSchema(
                 "Use for questions about: which events or activities are scheduled in a room, "
                 "room availability, event times, who is involved in a room event. "
                 "Key columns: "
-
-                "room_name (classroom like Aula 301) and  site_name (building like Edificio Gorizia), "
-                "room_code and site_code are the relatives ID of the room and site/building"
-
+                "room_name (classroom like Aula 301) and site_name (building like Edificio Gorizia), "
+                "room_code and site_code are the relative IDs of the room and site/building, "
                 "name_event (event or activity name), "
                 "date (iso format), "
                 "start_time (event start, e.g. '10:00'), "
                 "end_time (event end, e.g. '13:00'), "
-                "professors (professors or persons involved), "
+                "professors (professors or persons involved)."
             ),
         ),
         SQLTableSchema(
             table_name="info_aula",
             context_str=(
-                "Contains static info about a classrom. "
-                "Use for questions about: where is the room, how big it is"
+                "Contains static info about a classroom. "
+                "Use for questions about: where is the room, how big it is, "
                 "is there wifi in that room. "
                 "Key columns: "
-
-                "room_name (classroom like Aula 301) and  site_name (building like Edificio Gorizia), "
-                "room_code and site_code are the relatives ID of the room and site/building"
-
+                "room_name (classroom like Aula 301) and site_name (building like Edificio Gorizia), "
+                "room_code and site_code are the relative IDs of the room and site/building, "
                 "floor of the building, "
                 "room_type (if it's considered small, big, if it's aula magna...), "
-                "capacity (how many students can stay there) "
-                "accessible (it's not about disability. If no maybe there are work in progress, specify only it the value is no) "
+                "capacity (how many students can stay there), "
+                "accessible (it's not about disability. If no maybe there are works in progress, specify only if the value is no), "
                 "maps_url (you can see on google maps the position of the building where the room is), "
                 "equipment (if there is wifi, Proiettore, lavagne...), "
-                "url (url with more info about the room)"
+                "url (url with more info about the room)."
             ),
         ),
     ]
@@ -242,7 +355,7 @@ SQLTableSchema(
     # --- Column retrievers loaded from ChromaDB on disk ---
     chroma_client = chromadb.PersistentClient(path=str(chroma_dir))
 
-    cols_retrievers = {
+    all_cols_retrievers = {
         "personale": {
             "nome_and_surname": load_column_retriever("personale__nome_and_surname", chroma_client, top_k=5),
             "role":             load_column_retriever("personale__role",             chroma_client, top_k=5),
@@ -274,31 +387,30 @@ SQLTableSchema(
             "professors": load_column_retriever("evento_aula__professors", chroma_client, top_k=5),
         },
         "info_aula": {
-            "site_name":    load_column_retriever("info_aula__site_name",  chroma_client, top_k=5),
-            "room_name":    load_column_retriever("info_aula__room_name",  chroma_client, top_k=5),
-            "address":      load_column_retriever("info_aula__address", chroma_client, top_k=5),
-            "floor":        load_column_retriever("info_aula__floor", chroma_client, top_k=5),
-            "room_type":    load_column_retriever("info_aula__room_type", chroma_client, top_k=5),
-
+            "site_name": load_column_retriever("info_aula__site_name", chroma_client, top_k=5),
+            "room_name": load_column_retriever("info_aula__room_name", chroma_client, top_k=5),
+            "address":   load_column_retriever("info_aula__address",   chroma_client, top_k=5),
+            "floor":     load_column_retriever("info_aula__floor",     chroma_client, top_k=5),
+            "room_type": load_column_retriever("info_aula__room_type", chroma_client, top_k=5),
         },
     }
 
-    query_engine = SQLTableRetrieverQueryEngine(
-        sql_database,
-        obj_index.as_retriever(similarity_top_k=5),
-        cols_retrievers=cols_retrievers,
-        llm=Settings.llm,                          # always use the globally configured LLM
-        #text_to_sql_prompt=TEXT_TO_SQL_PROMPT,     # custom prompt with UniTS-specific rules
-    )
+    # --- Table router (in-memory, built from TABLE_DOMAINS descriptions) ---
+    table_router_index = build_table_router(embed_model=Settings.embed_model)
 
-    return query_engine
+    return RoutedSQLQueryEngine(
+        sql_database=sql_database,
+        obj_index=obj_index,
+        all_cols_retrievers=all_cols_retrievers,
+        table_router_index=table_router_index,
+    )
 
 
 # ---------------------------------------------------------------------------
 # Interactive loop
 # ---------------------------------------------------------------------------
 
-def interactive_loop(query_engine) -> None:
+def interactive_loop(query_engine: RoutedSQLQueryEngine) -> None:
     print("\nUniversity Query System — type 'exit' to quit\n")
     while True:
         user_input = input("Query> ").strip()
@@ -309,7 +421,6 @@ def interactive_loop(query_engine) -> None:
         try:
             response = query_engine.query(user_input)
             print(f"\nAnswer: {response}\n")
-            # Show the generated SQL for transparency
             if hasattr(response, "metadata") and response.metadata:
                 sql = response.metadata.get("sql_query")
                 if sql:
@@ -326,9 +437,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="University NL query engine")
     parser.add_argument("--query", default=None, help="Single query (non-interactive)")
     args = parser.parse_args()
-        
-    qe = build_query_engine(Path(DEFAULT_DB), Path(DEFAULT_CHROMA_DIR))
 
+    qe = build_query_engine(Path(DEFAULT_DB), Path(DEFAULT_CHROMA_DIR))
 
     if args.query:
         response = qe.query(args.query)
