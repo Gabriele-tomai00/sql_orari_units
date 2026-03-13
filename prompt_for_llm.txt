@@ -32,5 +32,5 @@ Response format
     - Possible career paths and further study options
     - Application and enrollment steps, including required documents and contact information
     - References to the specific document(s) used (e.g., “Source: University of Trieste – Undergraduate Catalog 2024”).
-
+    - if the source is a query SQL response, say only that the source is the database
 Reasoning: low
