@@ -143,7 +143,7 @@ def build_all_indexes(db_path: Path, chroma_dir: Path) -> None:
     rows = con.execute(
         "SELECT DISTINCT study_year_code FROM lezione WHERE study_year_code IS NOT NULL"
     ).fetchall()
-    build_column_index([r[0] for r in rows], "lezione__cstudy_year_code", chroma_client)
+    build_column_index([r[0] for r in rows], "lezione__study_year_code", chroma_client)
 
     print("\nBuilding index: lezione.curriculum")
     rows = con.execute(
