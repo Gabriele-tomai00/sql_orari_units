@@ -188,14 +188,14 @@ def load_calendario_aule(calendario_aule_dir: Path) -> list[dict]:
             rows.append({
                 "site_code":     entry.get("site_code"),            # code
                 "room_code":     entry.get("room_code"),            # code
-                "site_name":   normalize_text(entry.get("site_name")),
-                "room_name":   normalize_text(entry.get("room_name")),
+                "site_name":     normalize_text(entry.get("site_name")),
+                "room_name":     normalize_text(entry.get("room_name")),
                 "date":          entry.get("date"),                 # ISO date
                 "last_update":   entry.get("last_update"),
                 "start_time":    entry.get("start_time"),           # HH:MM
                 "end_time":      entry.get("end_time"),
-                "name_event":  normalize_text(entry.get("name_event")),
-                "professors":  normalize_text(entry.get("professors")),
+                "name_event":    normalize_text(entry.get("name_event")),
+                "professors":    normalize_text(entry.get("professors")),
             })
 
     print(f"[calendario aule]       loaded {len(rows):>6} rows from {len(json_files)} file(s)")
@@ -217,18 +217,18 @@ def load_info_aule(path: Path) -> list[dict]:
             equipment = {k: normalize_text(v) if isinstance(v, str) else v for k, v in equipment.items()}
 
         rows.append({
-            "room_code":     meta.get("room_code"),         # 001_3 — code
-            "room_name":   normalize_text(meta.get("room_name")),
-            "site_name":   normalize_text(meta.get("site_name")),
-            "site_code":     meta.get("site_code"),         # AH03 — code
-            "address":     normalize_text(meta.get("address")),
-            "floor":       normalize_text(meta.get("floor")),
-            "room_type":   normalize_text(meta.get("room_type")),
-            "capacity":      meta.get("capacity"),          # integer — do not normalize
-            "accessible":    meta.get("accessible"),        # bool — do not normalize
-            "maps_url":      meta.get("maps_url"),          # URL — do not normalize
-            "equipment":     json.dumps(equipment, ensure_ascii=False),
-            "url":           meta.get("url"),               # URL — do not normalize
+            "room_code":        meta.get("room_code"),         # 001_3 — code
+            "room_name":        normalize_text(meta.get("room_name")),
+            "site_name":        normalize_text(meta.get("site_name")),
+            "site_code":        meta.get("site_code"),         # AH03 — code
+            "address":          normalize_text(meta.get("address")),
+            "floor":            normalize_text(meta.get("floor")),
+            "room_type":        normalize_text(meta.get("room_type")),
+            "capacity":         meta.get("capacity"),          # integer — do not normalize
+            "accessible":       meta.get("accessible"),        # bool — do not normalize
+            "maps_url":         meta.get("maps_url"),          # URL — do not normalize
+            "equipment":        json.dumps(equipment, ensure_ascii=False),
+            "url":              meta.get("url"),               # URL — do not normalize
         })
     return rows
 
