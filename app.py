@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 
 import chainlit as cl
-from index_utils import (
+from utils import (
     TABLE_DOMAINS,
     TABLE_ROUTER_TOP_K,
     TEXT_TO_SQL_PROMPT,

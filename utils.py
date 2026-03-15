@@ -30,6 +30,38 @@ Settings.llm = OpenAILike(
 )
 
 
+# ---------------------------------------------------------------------------
+# Text normalization
+# ---------------------------------------------------------------------------
+
+# Mapping of special apostrophe/quote variants to standard ASCII apostrophe.
+# We then replace the apostrophe itself with a space to avoid SQL issues.
+_APOSTROPHE_VARIANTS = str.maketrans({
+    "\u2019": "'",   # right single quotation mark  →  '
+    "\u2018": "'",   # left single quotation mark   →  '
+    "\u02BC": "'",   # modifier letter apostrophe   →  '
+    "\u0060": "'",   # grave accent                 →  '
+    "\u00B4": "'",   # acute accent                 →  '
+})
+
+def normalize_text(value) -> str | None:
+    """
+    Normalize a text value before inserting into the DB:
+      1. Skip non-string values unchanged (None, int, bool...)
+      2. Strip leading/trailing whitespace
+      3. Normalize all apostrophe variants to standard ASCII apostrophe
+      4. Replace apostrophe with a space  (e.g. "DELL'AMBIENTE" → "DELL AMBIENTE")
+         This avoids SQL quoting issues while preserving searchability for embeddings.
+      5. Collapse multiple spaces into one
+    """
+    if not isinstance(value, str):
+        return value
+
+    value = value.strip()
+    value = value.translate(_APOSTROPHE_VARIANTS)
+    value = value.replace("'", " ")
+    value = re.sub(r" {2,}", " ", value)  # collapse multiple spaces
+    return value
 
 # ---------------------------------------------------------------------------
 # Logging wrapper for column retrievers

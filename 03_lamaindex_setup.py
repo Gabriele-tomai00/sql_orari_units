@@ -30,7 +30,7 @@ from llama_index.vector_stores.chroma import ChromaVectorStore
 DEFAULT_DB = "2025-2026_data/university.db"
 DEFAULT_CHROMA_DIR = "2025-2026_data/chroma_store"
 
-from index_utils import *
+from utils import *
 
 
 def build_column_index(

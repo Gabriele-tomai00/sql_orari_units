@@ -29,7 +29,7 @@ from pathlib import Path
 
 
 
-from index_utils import *
+from utils import *
 
 DEFAULT_DB = "2025-2026_data/university.db"
 DEFAULT_CHROMA_DIR = "2025-2026_data/chroma_store"
