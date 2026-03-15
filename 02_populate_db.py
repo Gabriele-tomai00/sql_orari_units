@@ -1,9 +1,6 @@
 """
 02_insert_data.py
 -----------------
-Loads personale.json, insegnamenti.json, and all JSON files from the
-'lezioni/' folder, then inserts all rows into the SQLite database
-created by 01_create_db.py.
 
 Usage:
     python 02_insert_data.py
@@ -14,11 +11,11 @@ import sqlite3
 from pathlib import Path
 from utils import normalize_text
 
-DEFAULT_PERSONALE           =    "2025-2026_data/personale.json"
-DEFAULT_INSEGNAMENTO        =    "2025-2026_data/insegnamenti.json"
-DEFAULT_LEZIONI_DIR         =    "2025-2026_data/schedule_lezioni/"
+DEFAULT_PERSONALE           =    "2025-2026_data/address_book.json"
+DEFAULT_INSEGNAMENTO        =    "2025-2026_data/courses_with_teams_code.json"
+DEFAULT_LEZIONI_DIR         =    "2025-2026_data/lessons_calendar/"
 DEFAULT_CALENDARIO_AULE_DIR =    "2025-2026_data/rooms_calendar/"
-DEFAULT_INFO_AULE           =    "2025-2026_data/info_aule.json"
+DEFAULT_INFO_AULE           =    "2025-2026_data/info_rooms.json"
 
 DEFAULT_DB                  =    "2025-2026_data/university.db"
 
