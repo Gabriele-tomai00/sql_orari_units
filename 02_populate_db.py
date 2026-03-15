@@ -10,7 +10,6 @@ Usage:
 """
 
 import json
-import re
 import sqlite3
 from pathlib import Path
 from utils import normalize_text
@@ -18,7 +17,7 @@ from utils import normalize_text
 DEFAULT_PERSONALE           =    "2025-2026_data/personale.json"
 DEFAULT_INSEGNAMENTO        =    "2025-2026_data/insegnamenti.json"
 DEFAULT_LEZIONI_DIR         =    "2025-2026_data/schedule_lezioni/"
-DEFAULT_CALENDARIO_AULE_DIR =    "2025-2026_data/schedule_aule/"
+DEFAULT_CALENDARIO_AULE_DIR =    "2025-2026_data/rooms_calendar/"
 DEFAULT_INFO_AULE           =    "2025-2026_data/info_aule.json"
 
 DEFAULT_DB                  =    "2025-2026_data/university.db"
@@ -163,6 +162,8 @@ def load_calendario_aule(calendario_aule_dir: Path) -> list[dict]:
                 "end_time":      entry.get("end_time"),
                 "name_event":    normalize_text(entry.get("name_event")),
                 "professors":    normalize_text(entry.get("professors")),
+                "cancelled":    normalize_text(entry.get("cancelled")),
+                "event_type":    normalize_text(entry.get("event_type")),
             })
 
     print(f"[calendario aule]       loaded {len(rows):>6} rows from {len(json_files)} file(s)")
@@ -269,9 +270,9 @@ def insert_data(
             con.executemany(
                 """INSERT INTO evento_aula
                    (site_code, room_code, site_name, room_name, date, last_update, start_time, end_time, name_event,
-                    professors)
+                    professors, cancelled, event_type)
                    VALUES (:site_code, :room_code, :site_name, :room_name, :date, :last_update, :start_time, :end_time, :name_event,
-                           :professors)""",
+                           :professors, :cancelled, :event_type)""",
                 calendario_aule_rows,
             )
             print(f"[calendario aule]       inserted {len(calendario_aule_rows):>6} rows")

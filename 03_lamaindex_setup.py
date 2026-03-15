@@ -214,6 +214,12 @@ def build_all_indexes(db_path: Path, chroma_dir: Path) -> None:
     ).fetchall()
     build_column_index([r[0] for r in rows], "evento_aula__professors", chroma_client)
 
+    print("\nBuilding index: evento_aula.event_type")
+    rows = con.execute(
+        "SELECT DISTINCT event_type FROM evento_aula WHERE event_type IS NOT NULL"
+    ).fetchall()
+    build_column_index([r[0] for r in rows], "evento_aula__event_type", chroma_client)
+
 # ------------ INFO AULA ---------------
 
     print("\nBuilding index: info_aula.site_name")

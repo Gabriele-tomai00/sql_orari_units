@@ -10,6 +10,7 @@ from llama_index.core.objects import ObjectIndex, SQLTableNodeMapping, SQLTableS
 from llama_index.core.schema import TextNode
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from pathlib import Path
+import re
 
 def get_prompt_from_file(file_path):
     with open(file_path, "r", encoding="utf-8") as f:
@@ -179,9 +180,10 @@ TEXT_TO_SQL_PROMPT = PromptTemplate(
     "- Per query su un'intera settimana o un intervallo di date, usa SELECT con solo le colonne "
     "essenziali: data, ora_inizio, ora_fine, nome_materia, nome_aula, nome_edificio, url.\n"
     "- Non esistono relazioni tra le tabelle a causa di dati non normalizzati.\n"
-    "- Rispondi sempre in italiano nella fase di sintesi finale.\n"
     "- Se la domanda fa riferimento a una data relativa (oggi, ieri, domani...), "
     "nella risposta includi anche la data esplicita nel formato appropriato.\n"
+    "- Se la domanda riguarda un esame o qualunque tipo di evento diverso dalle lezioni, "
+    " non cercare nella tabella lezioni ma c'erca nella tabella evento_aula"
 
     "- Quando si cerca per nome professore e il column retriever suggerisce più nomi distinti "
     "(es. 'DE LORENZO ANDREA' e 'DE LORENZO GIUDITTA'), usa LIKE separati per ogni nome "
@@ -268,7 +270,7 @@ TABLE_DOMAINS = {
     ),
     "evento_aula": (
         "event evento booking prenotazione aula room occupancy occupazione "
-        "calendar calendario edificio building schedule orario"
+        "calendar calendario edificio building schedule orario tipo di evento esame exam"
     ),
     "info_aula": (
         "classroom aula room info details dettagli building edificio "
@@ -356,7 +358,9 @@ def build_query_engine(db_path: Path, chroma_dir: Path) -> RoutedSQLQueryEngine:
                 "date (iso format), "
                 "start_time (event start, e.g. '10:00'), "
                 "end_time (event end, e.g. '13:00'), "
-                "professors (professors or persons involved)."
+                "professors (professors or persons involved). "
+                "cancelled (yes or not) "
+                "event_type (usually lesson or exam, or other type of activity)"
             ),
         ),
         SQLTableSchema(
@@ -418,6 +422,8 @@ def build_query_engine(db_path: Path, chroma_dir: Path) -> RoutedSQLQueryEngine:
             "room_name":  load_column_retriever("evento_aula__room_name",  chroma_client, top_k=5),
             "name_event": load_column_retriever("evento_aula__name_event", chroma_client, top_k=5),
             "professors": load_column_retriever("evento_aula__professors", chroma_client, top_k=5),
+            "event_type": load_column_retriever("evento_aula__event_type", chroma_client, top_k=5),
+
         },
         "info_aula": {
             "site_name": load_column_retriever("info_aula__site_name", chroma_client, top_k=5),

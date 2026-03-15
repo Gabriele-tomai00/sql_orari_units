@@ -104,7 +104,9 @@ CREATE TABLE IF NOT EXISTS evento_aula (
     start_time          TEXT,
     end_time            TEXT,
     name_event          TEXT,
-    professors          TEXT
+    professors          TEXT,
+    cancelled           TEXT DEFAULT 'no',
+    event_type          TEXT
 );
 """
 
