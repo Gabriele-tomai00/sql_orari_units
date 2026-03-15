@@ -76,6 +76,8 @@ if __name__ == "__main__":
         if hasattr(response, "metadata") and response.metadata:
             sql = response.metadata.get("sql_query")
             if sql:
-                print(f"[SQL] {sql}")
+                sanitized = self._sanitize_sql(sql)
+                response.metadata["sql_query"] = sanitized
+                print(f"[SQL] {sanitized}")
     else:
         interactive_loop(query_engine)
