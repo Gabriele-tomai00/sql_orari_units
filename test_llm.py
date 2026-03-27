@@ -24,7 +24,7 @@ from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.openai_like import OpenAILike
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from sqlalchemy import create_engine
-from index_utils import *
+from utils import *
 
 DEFAULT_DB = "2025-2026_data/university.db"
 DEFAULT_CHROMA_DIR = "2025-2026_data/chroma_store"
@@ -47,7 +47,8 @@ TEST_QUESTIONS = [
     "Quali insegnamenti sono tenuti dai professori con cognome De Lorenzo?",
     "Che lezioni ci sono venerdì 13 marzo, per gli studenti di Computer Engineering curriculum Informatics?",
     "Che lezioni c'erano ieri, per gli studenti di Computer Engineering curriculum Informatics?",
-    "Ci sono lezioni di geometria di giovedì?"
+    "Ci sono lezioni di geometria di giovedì?",
+    "Dimmi tutti i corsi di laurea (nome e tipo) del dipartimento di ingegneria e architettura, "
 ]
 
 # ---------------------------------------------------------------------------

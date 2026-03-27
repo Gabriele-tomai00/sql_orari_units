@@ -5,12 +5,12 @@ Builds and persists ChromaDB embedding indexes for columns used as
 search filters in natural language queries.
 
 Indexed columns:
-  - insegnamento.course_name       (e.g. "sw dev" → "SOFTWARE DEVELOPMENT METHODS")
-  - insegnamento.professors    (e.g. "Paolo Vercesi" → "VERCESI PAOLO (014095)")
+  - insegnamento.course_name            (e.g. "sw dev" → "SOFTWARE DEVELOPMENT METHODS")
+  - insegnamento.professors             (e.g. "Paolo Vercesi" → "VERCESI PAOLO (014095)")
   - insegnamento.degree_program_name    (e.g. "informatica" → "COMPUTER ENGINEERING")
-  - insegnamento.academic_year     (e.g. "2025-2026" → "2025/2026")
-  - insegnamento.period            (e.g. "primo semestre" → "S1")
-  - personale.nome                 (fuzzy professor name matching)
+  - insegnamento.academic_year          (e.g. "2025-2026" → "2025/2026")
+  - insegnamento.period                 (e.g. "primo semestre" → "S1")
+  - personale.nome                      (fuzzy professor name matching)
 
 Usage:
     python 03_build_index.py
@@ -124,6 +124,55 @@ def build_all_indexes(db_path: Path, chroma_dir: Path) -> None:
     ).fetchall()
     build_column_index([r[0] for r in rows], "insegnamento__period", chroma_client)
 
+# ------------ CORSO DI LAUREA ---------------
+
+    print("\nBuilding index: corso_di_laurea.name")
+    rows = con.execute(
+        "SELECT DISTINCT name FROM corso_di_laurea WHERE name IS NOT NULL"
+    ).fetchall()
+    build_column_index([r[0] for r in rows], "corso_di_laurea__name", chroma_client)
+
+    print("\nBuilding index: corso_di_laurea.url")
+    rows = con.execute(
+        "SELECT DISTINCT url FROM corso_di_laurea WHERE url IS NOT NULL"
+    ).fetchall()
+    build_column_index([r[0] for r in rows], "corso_di_laurea__url", chroma_client)
+
+    print("\nBuilding index: corso_di_laurea.category")
+    rows = con.execute(
+        "SELECT DISTINCT category FROM corso_di_laurea WHERE category IS NOT NULL"
+    ).fetchall()
+    build_column_index([r[0] for r in rows], "corso_di_laurea__category", chroma_client)
+
+    print("\nBuilding index: corso_di_laurea.department")
+    rows = con.execute(
+        "SELECT DISTINCT department FROM corso_di_laurea WHERE department NOT NULL"
+    ).fetchall()
+    build_column_index([r[0] for r in rows], "corso_di_laurea__department", chroma_client)
+
+    print("\nBuilding index: corso_di_laurea.type")
+    rows = con.execute(
+        "SELECT DISTINCT type FROM corso_di_laurea WHERE type IS NOT NULL"
+    ).fetchall()
+    build_column_index([r[0] for r in rows], "corso_di_laurea__type", chroma_client)
+
+    print("\nBuilding index: corso_di_laurea.duration")
+    rows = con.execute(
+        "SELECT DISTINCT duration FROM corso_di_laurea WHERE duration NOT NULL"
+    ).fetchall()
+    build_column_index([r[0] for r in rows], "corso_di_laurea__duration", chroma_client)
+
+    print("\nBuilding index: corso_di_laurea.location")
+    rows = con.execute(
+        "SELECT DISTINCT location FROM corso_di_laurea WHERE location NOT NULL"
+    ).fetchall()
+    build_column_index([r[0] for r in rows], "corso_di_laurea__location", chroma_client)
+
+    print("\nBuilding index: corso_di_laurea.language")
+    rows = con.execute(
+        "SELECT DISTINCT language FROM corso_di_laurea WHERE language IS NOT NULL"
+    ).fetchall()
+    build_column_index([r[0] for r in rows], "corso_di_laurea__language", chroma_client)
 
 # ------------ LEZIONE ---------------
 

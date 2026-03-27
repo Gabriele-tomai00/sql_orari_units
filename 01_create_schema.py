@@ -59,6 +59,22 @@ CREATE TABLE IF NOT EXISTS insegnamento (
 );
 """
 
+DDL_CORSO_DI_LAUREA = """
+CREATE TABLE IF NOT EXISTS corso_di_laurea (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    name            TEXT,
+    url             TEXT,
+    category        TEXT,
+    department      TEXT,
+    type            TEXT,
+    duration        TEXT,
+    location        TEXT,
+    language        TEXT
+
+);
+"""
+
 DDL_LEZIONE = """
 CREATE TABLE IF NOT EXISTS lezione (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -140,6 +156,7 @@ def create_schema(db_path: Path) -> None:
     with con:
         con.execute(DDL_PERSONALE)
         con.execute(DDL_INSEGNAMENTO)
+        con.execute(DDL_CORSO_DI_LAUREA)
         con.execute(DDL_LEZIONE)
         con.execute(DDL_EVENTO_AULA)
         con.execute(DDL_INFO_AULA)

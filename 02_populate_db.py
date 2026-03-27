@@ -13,6 +13,7 @@ from utils import normalize_text
 
 DEFAULT_PERSONALE           =    "2025-2026_data/address_book.json"
 DEFAULT_INSEGNAMENTO        =    "2025-2026_data/courses_with_teams_code.json"
+DEFAULT_CORSO_DI_LAUREA     =    "2025-2026_data/full_degree_programs.json"
 DEFAULT_LEZIONI_DIR         =    "2025-2026_data/lessons_calendar/"
 DEFAULT_CALENDARIO_AULE_DIR =    "2025-2026_data/rooms_calendar/"
 DEFAULT_INFO_AULE           =    "2025-2026_data/info_rooms.json"
@@ -69,6 +70,32 @@ def load_insegnamento(path: Path) -> list[dict]:
             "main_professor_id":           meta.get("teacher_id"),
             "period":                      meta.get("period"),              # e.g. "S1" — code, do not normalize
             "last_update":                 meta.get("last_update"),
+        })
+    return rows
+
+
+def load_corso_di_laurea(path: Path) -> list[dict]:
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    entries = data.get("entries", data) if isinstance(data, dict) else data
+
+    rows = []
+    for meta in entries:
+        # Normalize equipment string values but keep the JSON structure intact
+        equipment = meta.get("equipment")
+        if isinstance(equipment, dict):
+            equipment = {k: normalize_text(v) if isinstance(v, str) else v for k, v in equipment.items()}
+
+        rows.append({
+            "name":            normalize_text(meta.get("name")),
+            "category":        normalize_text(meta.get("category")),
+            "department":      normalize_text(meta.get("department")),
+            "type":            normalize_text(meta.get("type")),
+            "duration":        normalize_text(meta.get("duration")),
+            "location":        normalize_text(meta.get("location")),
+            "language":        normalize_text(meta.get("language")),
+            "url":             meta.get("link"),               # URL — do not normalize
         })
     return rows
 
@@ -206,6 +233,7 @@ def insert_data(
     db_path: Path,
     personale_path: Path,
     insegnamento_path: Path,
+    info_corsi_di_laurea: Path,
     lezioni_dir: Path,
     calendario_aule_dir: Path,
     info_aule: Path,
@@ -243,6 +271,17 @@ def insert_data(
         )
         print(f"[insegnamento] inserted {len(insegnamento_rows):>6} rows")
 
+      # -- corsi di laurea --
+        corso_di_laurea_rows = load_corso_di_laurea(info_corsi_di_laurea)
+        con.executemany(
+            """INSERT INTO corso_di_laurea
+               (name, url, category, department, type, duration, location, language)
+               VALUES (:name, :url, :category, :department,
+                       :type, :duration, :location, :language)""",
+            corso_di_laurea_rows,
+        )
+        print(f"[insegnamento] inserted {len(corso_di_laurea_rows):>6} rows")
+        
         # -- lezione --
         lezione_rows = load_lezioni(lezioni_dir)
         if lezione_rows:
@@ -296,6 +335,7 @@ if __name__ == "__main__":
         db_path=Path(DEFAULT_DB),
         personale_path=Path(DEFAULT_PERSONALE),
         insegnamento_path=Path(DEFAULT_INSEGNAMENTO),
+        info_corsi_di_laurea=Path(DEFAULT_CORSO_DI_LAUREA),
         lezioni_dir=Path(DEFAULT_LEZIONI_DIR),
         calendario_aule_dir=Path(DEFAULT_CALENDARIO_AULE_DIR),
         info_aule=Path(DEFAULT_INFO_AULE),

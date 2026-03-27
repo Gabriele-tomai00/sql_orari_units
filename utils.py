@@ -184,6 +184,7 @@ TEXT_TO_SQL_PROMPT = PromptTemplate(
     "nella risposta includi anche la data esplicita nel formato appropriato.\n"
     "- Se la domanda riguarda un esame o qualunque tipo di evento diverso dalle lezioni, "
     " non cercare nella tabella lezioni ma c'erca nella tabella evento_aula"
+    "- quando si chiedono informazioni su un corso di laurea (non la singola materia) cerca nella tabella 'corso_di_laurea' "
 
     "- Quando si cerca per nome professore e il column retriever suggerisce più nomi distinti "
     "(es. 'DE LORENZO ANDREA' e 'DE LORENZO GIUDITTA'), usa LIKE separati per ogni nome "
@@ -263,6 +264,10 @@ TABLE_DOMAINS = {
         "course insegnamento subject materia degree laurea professor docente "
         "teams code codice periodo semestre academic-year anno accademico"
     ),
+    "corso_di_laurea": (
+        "name url category department type duration location language "
+        "corsi di laurea triennale, magistrale e a ciclo unico con relativo dipartimento, durata, lingua di erogazione, tipo di corso"
+    ),
     "lezione": (
         "lesson lecture lezione schedule orario timetable "
         "quando date data ora start end aula edificio cancelled annullata "
@@ -280,7 +285,7 @@ TABLE_DOMAINS = {
 }
 
 # How many tables to select per query (increase to 3 for cross-table queries)
-TABLE_ROUTER_TOP_K = 2
+TABLE_ROUTER_TOP_K = 3
 
 
 
@@ -322,6 +327,23 @@ def build_query_engine(db_path: Path, chroma_dir: Path) -> RoutedSQLQueryEngine:
                 "teams_code (Microsoft Teams code), "
                 "study_code (course code, e.g. '472MI-1'). "
                 "last_update of these information."
+            ),
+        ),
+        SQLTableSchema(
+            table_name="corso_di_laurea",
+            context_str=(
+                "Contains university courses (subjects) and their academic details. "
+                "Use for questions about: which professor teaches a course, "
+                "Teams code of a course, degree program, academic year, semester period. "
+                "Key columns: "
+                "name (course name), "
+                "url (link of the webpage course), "
+                "category (if it's bachelor or master) "
+                "department, "
+                "type (if it's bachelor or master) "
+                "duration (years), "
+                "location (the site), "
+                "language (language of the lessons), "
             ),
         ),
         SQLTableSchema(
@@ -404,6 +426,14 @@ def build_query_engine(db_path: Path, chroma_dir: Path) -> RoutedSQLQueryEngine:
             "subject_name":            load_column_retriever("insegnamento__subject_name",            chroma_client, top_k=5),
             "professors":              load_column_retriever("insegnamento__professors",              chroma_client, top_k=5),
             "period":                  load_column_retriever("insegnamento__period",                  chroma_client, top_k=1),
+        },
+        "corso_di_laurea": {
+            "name":             load_column_retriever("corso_di_laurea__name",                chroma_client, top_k=5),
+            "category":         load_column_retriever("corso_di_laurea__category",            chroma_client, top_k=5),
+            "department":       load_column_retriever("corso_di_laurea__department",          chroma_client, top_k=5),
+            "type":             load_column_retriever("corso_di_laurea__type",                chroma_client, top_k=5),
+            "duration":         load_column_retriever("corso_di_laurea__duration",            chroma_client, top_k=5),
+            "language":         load_column_retriever("corso_di_laurea__language",            chroma_client, top_k=5),
         },
         "lezione": {
             "degree_program_name": load_column_retriever("lezione__degree_program_name", chroma_client, top_k=5),
