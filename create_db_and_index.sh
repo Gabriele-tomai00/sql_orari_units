@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-ENV_DIR="env311"
+ENV_DIR="env"
 DATA_DIR="2025-2026_data"
 
 echo "Using START_DATE = $START_DATE"
@@ -33,8 +33,8 @@ else
 fi
 
 printf "\n\n\UNZIP FOLDER\n"
-if [ ! -d "${DATA_DIR}_unzipped" ]; then
-    unzip "${DATA_DIR}.zip" -d "${DATA_DIR}_unzipped/ "
+if [ ! -d "$DATA_DIR" ]; then
+    unzip "${DATA_DIR}.zip" -d "$DATA_DIR/"
 fi
 
 printf "\n\n\nCREATE DB\n"
