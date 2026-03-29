@@ -1,17 +1,18 @@
+from pathlib import Path
+import re
+import time
+
 from llama_index.core import Settings
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.openai_like import OpenAILike
 from llama_index.core.prompts import PromptTemplate
 from sqlalchemy import create_engine
 import chromadb
-from llama_index.core import Settings, SQLDatabase, StorageContext, VectorStoreIndex
+from llama_index.core import Settings, SQLDatabase, VectorStoreIndex
 from llama_index.core.indices.struct_store.sql_query import SQLTableRetrieverQueryEngine
 from llama_index.core.objects import ObjectIndex, SQLTableNodeMapping, SQLTableSchema
 from llama_index.core.schema import TextNode
 from llama_index.vector_stores.chroma import ChromaVectorStore
-from pathlib import Path
-import re
-import time
 
 def get_prompt_from_file(file_path):
     with open(file_path, "r", encoding="utf-8") as f:
@@ -197,7 +198,7 @@ TEXT_TO_SQL_PROMPT = PromptTemplate(
     "- Never use SQL JOINs — tables are not normalized and have no reliable foreign keys.\n"
     "- Default LIMIT is 40 rows unless the user specifies otherwise.\n"
     "- For week or date range queries, SELECT only essential columns:\n"
-    "  date, start_time, end_time, subject_name, room_name, site_name, url.\n"
+    "  date, start_time, end_time, subject_name, room_name, site_name\n"
     "- For relative dates (today, yesterday, tomorrow), compute the explicit ISO date\n"
     "  and use it directly in the WHERE clause.\n"
     "- When searching by professor and the column hints return multiple distinct names\n"
@@ -207,6 +208,13 @@ TEXT_TO_SQL_PROMPT = PromptTemplate(
     "  so that results from different professors can be distinguished in the final answer.\n"
     "- When the user mentions a department to identify a professor, treat it as\n"
     "  disambiguation context only — do NOT add filters on degree_program_name.\n"
+    "- For exam queries in 'evento_aula', always filter by subject name using\n"
+    "  name_event (e.g. UPPER(name_event) LIKE '%DATABASE%'), never by degree \n"
+    "  program name since that column does not exist in this table.\n"
+    "  Always filter by event_type: UPPER(event_type) LIKE '%ESAME%'.\n"
+    "  If the user asks for exams of a degree program instead of a specific \n"
+    "  subject, explain that the exam calendar can only be searched by subject\n"
+    "  name, not by degree program.\n"
     "\n"
     "## Output\n"
     "- Return only the SQL query, no comments, no explanation, no markdown.\n"
