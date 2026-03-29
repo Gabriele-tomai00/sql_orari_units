@@ -4,8 +4,8 @@ set -e
 ENV_DIR="env"
 DATA_DIR="2025-2026_data"
 
-echo "Using START_DATE = $START_DATE"
-echo "Using END_DATE = $END_DATE"
+echo "Using DATA_DIR = $DATA_DIR"
+echo "Using ENV = $ENV_DIR"
 
 # --- Check/Create Virtual Environment ---
 if [[ ! -d "$ENV_DIR" ]]; then
