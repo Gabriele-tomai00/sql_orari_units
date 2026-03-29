@@ -1,0 +1,27 @@
+# Web / utilities
+requests
+joblib
+
+# Vector store
+chromadb
+
+# LlamaIndex
+llama-index-core
+llama-index-vector-stores-chroma
+llama-index-embeddings-huggingface
+llama-index-llms-openai-like
+
+# Chainlit
+chainlit
+
+# ML / embeddings - pinned for compatibility with Tesla V100 (CUDA CC 7.0)
+torch==2.2.0+cu118
+torchvision==0.17.0+cu118
+--extra-index-url https://download.pytorch.org/whl/cu118
+
+# Pinned for torch 2.2 compatibility
+transformers==4.40.0
+sentence-transformers==2.7.0
+
+# Pinned for torch 2.2 compatibility (numpy 2.x breaks torch 2.2)
+numpy<2
