@@ -67,7 +67,7 @@ python test_llm.py --db path/to/university.db --chroma-dir path/to/chroma_store 
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.11+ (I raccomand python 3.11 for problem with Chainlit)
 - A local LLM server exposing an OpenAI-compatible `/v1` endpoint (e.g. llama.cpp, LiteLLM)
 - See `requirements.txt` for Python dependencies
 
