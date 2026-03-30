@@ -42,11 +42,9 @@ TEST_QUESTIONS = [
     "What course does professor Paolo Vercesi teach?",
     "What courses are taught by Vercesi Paolo",
     "What courses are taught by De Lorenzo?",
-    "What courses are taught by De Lorenzo of the Department of Engineering?",
-    "What courses are taught by De Lorenzo?",
     "What courses are taught by professors with the surname De Lorenzo?",
     "What lessons are there on Friday, March 13, for students of Computer Engineering curriculum Informatics?",
-    "What lessons were there yesterday, for students of Computer Engineering curriculum Informatics?",
+    "What lessons are there tomorrow, for students of Computer Engineering curriculum Informatics?",
     "Are there any geometry classes on Thursday?",
     "Tell me all the degree programs (name and type) of the Department of Engineering and Architecture",
     "tell me all the exams in the calendar for the Advanced Internet Technologies subject that were held in February 2026"
