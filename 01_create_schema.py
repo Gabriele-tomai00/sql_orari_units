@@ -20,11 +20,11 @@ DEFAULT_DB = "2025-2026_data/university.db"
 # DDL — base tables
 # ---------------------------------------------------------------------------
 
-DDL_PERSONALE = """
-CREATE TABLE IF NOT EXISTS personale (
+DDL_STAFF = """
+CREATE TABLE IF NOT EXISTS staff (
     id                   INTEGER PRIMARY KEY AUTOINCREMENT,
     -- Raw full name as found in the source (e.g. "Rossi Mario")
-    nome_and_surname     TEXT NOT NULL,
+    name_and_surname     TEXT NOT NULL,
     role                 TEXT,
     department           TEXT,
     department_url       TEXT,
@@ -36,8 +36,8 @@ CREATE TABLE IF NOT EXISTS personale (
 
 # course is RETI 1
 # degree is INGEGNERIA
-DDL_INSEGNAMENTO = """
-CREATE TABLE IF NOT EXISTS insegnamento (
+DDL_SUBJECT = """
+CREATE TABLE IF NOT EXISTS subject (
     id                       INTEGER PRIMARY KEY AUTOINCREMENT,
 
     subject_code             TEXT,
@@ -59,8 +59,8 @@ CREATE TABLE IF NOT EXISTS insegnamento (
 );
 """
 
-DDL_CORSO_DI_LAUREA = """
-CREATE TABLE IF NOT EXISTS corso_di_laurea (
+DDL_DEGREE_PROGRAM = """
+CREATE TABLE IF NOT EXISTS degree_program (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
 
     name            TEXT,
@@ -74,8 +74,8 @@ CREATE TABLE IF NOT EXISTS corso_di_laurea (
 );
 """
 
-DDL_LEZIONE = """
-CREATE TABLE IF NOT EXISTS lezione (
+DDL_CALENDAR_LESSON = """
+CREATE TABLE IF NOT EXISTS calendar_lesson (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
 
     subject_code        TEXT,
@@ -106,8 +106,8 @@ CREATE TABLE IF NOT EXISTS lezione (
 );
 """
 
-DDL_EVENTO_AULA = """
-CREATE TABLE IF NOT EXISTS evento_aula (
+DDL_ROOM_EVENT = """
+CREATE TABLE IF NOT EXISTS room_event (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
 
     site_code           TEXT,
@@ -125,8 +125,8 @@ CREATE TABLE IF NOT EXISTS evento_aula (
 );
 """
 
-DDL_INFO_AULA = """
-CREATE TABLE IF NOT EXISTS info_aula (
+DDL_ROOM_INFO = """
+CREATE TABLE IF NOT EXISTS room_info (
     room_code               TEXT PRIMARY KEY,
 
     room_name               TEXT,
@@ -153,12 +153,12 @@ def create_schema(db_path: Path) -> None:
     con.execute("PRAGMA foreign_keys=OFF;")  # no FK constraints by design
 
     with con:
-        con.execute(DDL_PERSONALE)
-        con.execute(DDL_INSEGNAMENTO)
-        con.execute(DDL_CORSO_DI_LAUREA)
-        con.execute(DDL_LEZIONE)
-        con.execute(DDL_EVENTO_AULA)
-        con.execute(DDL_INFO_AULA)
+        con.execute(DDL_STAFF)
+        con.execute(DDL_SUBJECT)
+        con.execute(DDL_DEGREE_PROGRAM)
+        con.execute(DDL_CALENDAR_LESSON)
+        con.execute(DDL_ROOM_EVENT)
+        con.execute(DDL_ROOM_INFO)
 
     con.close()
     print(f"Schema created: {db_path.resolve()}")

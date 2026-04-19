@@ -25,12 +25,12 @@ def get_prompt_from_file(file_path):
 Settings.embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-m3")
 
 Settings.llm = OpenAILike(
-    model="ggml-org/gpt-oss-120b-GGUF",
+    model=os.getenv("MODEL"),
     api_base=os.getenv("LLM_API_BASE"),
-    api_key=os.getenv("LLM_API_KEY", "not_necessary"),
-    context_window=8192,
-    max_tokens=2048,
-    temperature=0.1,
+    api_key=os.getenv("API_KEY"),
+    context_window=int(os.getenv("CONTEXT_WINDOW")),
+    max_tokens=int(os.getenv("MAX_TOKENS")),
+    temperature=float(os.getenv("TEMPERATURE")),
     is_chat_model=True,
     system_prompt=get_prompt_from_file("prompt_for_llm.txt"),
     timeout=30,
@@ -87,14 +87,14 @@ class LoggingRetriever:
     def retrieve(self, query: str):
         nodes = self._inner.retrieve(query)
         if nodes:
-            print(f"\n  [COLUMN RETRIEVER — {self._label}]")
+            print(f"\n  [COLUMN RETRIEVER -- {self._label}]")
             print(f"  Query : '{query}'")
             print(f"  Matches ({len(nodes)}):")
             for i, n in enumerate(nodes, 1):
                 score = f"{n.score:.4f}" if n.score is not None else "n/a"
                 print(f"    {i}. '{n.node.get_content()}' (score: {score})")
         else:
-            print(f"\n  [COLUMN RETRIEVER — {self._label}] No matches for '{query}'")
+            print(f"\n  [COLUMN RETRIEVER -- {self._label}] No matches for '{query}'")
         return nodes
 
     def __getattr__(self, name):
@@ -163,10 +163,10 @@ def route_tables(query: str, table_router_index: VectorStoreIndex) -> list[str]:
     matched = retriever.retrieve(query)
     selected = [n.metadata["table"] for n in matched]
 
-    print(f"\n  [TABLE ROUTER] Query: '{query}'")
+    print(f"\n  [TABLE ROUTER -- Query: '{query}']")
     for n in matched:
         score = f"{n.score:.4f}" if n.score is not None else "n/a"
-        print(f"    → {n.metadata['table']} (score: {score})")
+        print(f"    - {n.metadata['table']} (score: {score})")
 
     return selected
 
@@ -187,13 +187,13 @@ TEXT_TO_SQL_PROMPT = PromptTemplate(
     "- Use only column names present in the provided schema.\n"
     "\n"
     "## Table routing\n"
-    "- Lesson times, dates, schedules → table 'lezione'\n"
-    "- Exams, room bookings, or any non-lesson event → table 'evento_aula'\n"
-    "- Who teaches a course, Teams code → table 'insegnamento'\n"
-    "- Person info (email, role, department) → table 'personale'\n"
-    "- Degree program info (not single subject) → table 'corso_di_laurea'\n"
-    "- Room static info (capacity, equipment, floor) → table 'info_aula'\n"
-    "  If not found in 'evento_aula', also try 'lezione'.\n"
+    "- Lesson times, dates, schedules → table 'calendar_lesson'\n"
+    "- Exams, room bookings, or any non-lesson event → table 'room_event'\n"
+    "- Who teaches a course, Teams code → table 'subject'\n"
+    "- Person info (email, role, department) → table 'staff'\n"
+    "- Degree program info (not single subject) → table 'degree_program'\n"
+    "- Room static info (capacity, equipment, floor) → table 'room_info'\n"
+    "  If not found in 'room_event', also try 'calendar_lesson'.\n"
     "\n"
     "## SQL rules\n"
     "- Always use UPPER() with LIKE when comparing text columns.\n"
@@ -208,11 +208,11 @@ TEXT_TO_SQL_PROMPT = PromptTemplate(
     "- When searching by professor and the column hints return multiple distinct names\n"
     "  (e.g. 'DE LORENZO ANDREA' and 'DE LORENZO GIUDITTA'), use a separate LIKE per name\n"
     "  combined with OR. Never use a generic LIKE on surname alone.\n"
-    "- Always include the 'professors' column in SELECT when querying 'insegnamento',\n"
+    "- Always include the 'professors' column in SELECT when querying 'subject',\n"
     "  so that results from different professors can be distinguished in the final answer.\n"
     "- When the user mentions a department to identify a professor, treat it as\n"
     "  disambiguation context only — do NOT add filters on degree_program_name.\n"
-    "- For exam queries in 'evento_aula', always filter by subject name using\n"
+    "- For exam queries in 'room_event', always filter by subject name using\n"
     "  name_event (e.g. UPPER(name_event) LIKE '%DATABASE%'), never by degree \n"
     "  program name since that column does not exist in this table.\n"
     "  Always filter by event_type: UPPER(event_type) LIKE '%ESAME%'.\n"
@@ -303,28 +303,28 @@ class RoutedSQLQueryEngine:
 # The table router embeds these descriptions and finds the closest ones
 # to the user query, so only those tables' column retrievers are used.
 TABLE_DOMAINS = {
-    "personale": (
+    "staff": (
         "staff person professor docente employee contact "
-        "personale nome email phone telefono ruolo dipartimento"
+        "staff nome email phone telefono ruolo dipartimento"
     ),
-    "insegnamento": (
-        "course insegnamento subject materia degree laurea professor docente "
+    "subject": (
+        "course subject subject materia degree laurea professor docente "
         "teams code codice periodo semestre academic-year anno accademico"
     ),
-    "corso_di_laurea": (
+    "degree_program": (
         "name url department type duration location language "
         "corsi di laurea triennale, magistrale e a ciclo unico con relativo dipartimento, durata, lingua di erogazione, tipo di corso (triennale, magistrale, a ciclo unico)"
     ),
-    "lezione": (
-        "lesson lecture lezione schedule orario timetable "
+    "calendar_lesson": (
+        "lesson lecture calendar_lesson schedule orario timetable "
         "quando date data ora start end aula edificio cancelled annullata "
         "subject materia professor docente degree"
     ),
-    "evento_aula": (
+    "room_event": (
         "event evento booking prenotazione aula room occupancy occupazione "
         "calendar calendario edificio building schedule orario tipo di evento esame exam"
     ),
-    "info_aula": (
+    "room_info": (
         "classroom aula room info details dettagli building edificio "
         "floor piano capacity capienza equipment attrezzature wifi "
         "proiettore accessible accessibile maps mappa indirizzo address"
@@ -344,21 +344,21 @@ def build_query_engine(db_path: Path, chroma_dir: Path) -> RoutedSQLQueryEngine:
     engine = create_engine(f"sqlite:///{db_path}")
     sql_database = SQLDatabase(
         engine,
-        include_tables=["personale", "insegnamento", "lezione", "evento_aula", "info_aula"],
+        include_tables=["staff", "subject", "calendar_lesson", "room_event", "room_info"],
     )
 
     # --- Table schema index (used by SQLTableRetrieverQueryEngine internally) ---
     table_node_mapping = SQLTableNodeMapping(sql_database)
     table_schema_objs = [
         SQLTableSchema(
-            table_name="personale",
+            table_name="staff",
             context_str=(
                 "Contains university staff and professors. "
                 "Key columns: nome (full name), role, department, email, phone."
             ),
         ),
         SQLTableSchema(
-            table_name="insegnamento",
+            table_name="subject",
             context_str=(
                 "Contains university courses (subjects) and their academic details. "
                 "Use for questions about: which professor teaches a course, "
@@ -377,7 +377,7 @@ def build_query_engine(db_path: Path, chroma_dir: Path) -> RoutedSQLQueryEngine:
             ),
         ),
         SQLTableSchema(
-            table_name="corso_di_laurea",
+            table_name="degree_program",
             context_str=(
                 "Contains university courses (subjects) and their academic details. "
                 "Use for questions about: which professor teaches a course, "
@@ -393,7 +393,7 @@ def build_query_engine(db_path: Path, chroma_dir: Path) -> RoutedSQLQueryEngine:
             ),
         ),
         SQLTableSchema(
-            table_name="lezione",
+            table_name="calendar_lesson",
             context_str=(
                 "Contains scheduled lessons and academic calendar events. "
                 "Use for questions about: lesson times, start hour, end hour, "
@@ -414,7 +414,7 @@ def build_query_engine(db_path: Path, chroma_dir: Path) -> RoutedSQLQueryEngine:
             ),
         ),
         SQLTableSchema(
-            table_name="evento_aula",
+            table_name="room_event",
             context_str=(
                 "Contains classroom booking events and room occupancy schedule. "
                 "Use for questions about: which events or activities are scheduled in a room, "
@@ -432,7 +432,7 @@ def build_query_engine(db_path: Path, chroma_dir: Path) -> RoutedSQLQueryEngine:
             ),
         ),
         SQLTableSchema(
-            table_name="info_aula",
+            table_name="room_info",
             context_str=(
                 "Contains static info about a classroom. "
                 "Use for questions about: where is the room, how big it is, "
@@ -461,51 +461,51 @@ def build_query_engine(db_path: Path, chroma_dir: Path) -> RoutedSQLQueryEngine:
     chroma_client = chromadb.PersistentClient(path=str(chroma_dir))
 
     all_cols_retrievers = {
-        "personale": {
-            "nome_and_surname": load_column_retriever("personale__nome_and_surname", chroma_client, top_k=5),
-            "role":             load_column_retriever("personale__role",             chroma_client, top_k=5),
-            "department":       load_column_retriever("personale__department",       chroma_client, top_k=5),
+        "staff": {
+            "nome_and_surname": load_column_retriever("staff__nome_and_surname", chroma_client, top_k=5),
+            "role":             load_column_retriever("staff__role",             chroma_client, top_k=5),
+            "department":       load_column_retriever("staff__department",       chroma_client, top_k=5),
         },
-        "insegnamento": {
-            "degree_program_name":     load_column_retriever("insegnamento__degree_program_name",     chroma_client, top_k=5),
-            "degree_program_name_eng": load_column_retriever("insegnamento__degree_program_name_eng", chroma_client, top_k=5),
-            "subject_name":            load_column_retriever("insegnamento__subject_name",            chroma_client, top_k=5, similarity_cutoff=0.5),
-            "professors":              load_column_retriever("insegnamento__professors",              chroma_client, top_k=5),
-            "period":                  load_column_retriever("insegnamento__period",                  chroma_client, top_k=1),
+        "subject": {
+            "degree_program_name":     load_column_retriever("subject__degree_program_name",     chroma_client, top_k=5),
+            "degree_program_name_eng": load_column_retriever("subject__degree_program_name_eng", chroma_client, top_k=5),
+            "subject_name":            load_column_retriever("subject__subject_name",            chroma_client, top_k=5, similarity_cutoff=0.5),
+            "professors":              load_column_retriever("subject__professors",              chroma_client, top_k=5),
+            "period":                  load_column_retriever("subject__period",                  chroma_client, top_k=1),
         },
-        "corso_di_laurea": {
-            "name":             load_column_retriever("corso_di_laurea__name",                chroma_client, top_k=5),
-            "department":       load_column_retriever("corso_di_laurea__department",          chroma_client, top_k=5),
-            "type":             load_column_retriever("corso_di_laurea__type",                chroma_client, top_k=5),
-            "duration":         load_column_retriever("corso_di_laurea__duration",            chroma_client, top_k=5),
-            "language":         load_column_retriever("corso_di_laurea__language",            chroma_client, top_k=5),
+        "degree_program": {
+            "name":             load_column_retriever("degree_program__name",                chroma_client, top_k=5),
+            "department":       load_column_retriever("degree_program__department",          chroma_client, top_k=5),
+            "type":             load_column_retriever("degree_program__type",                chroma_client, top_k=5),
+            "duration":         load_column_retriever("degree_program__duration",            chroma_client, top_k=5),
+            "language":         load_column_retriever("degree_program__language",            chroma_client, top_k=5),
         },
-        "lezione": {
-            "degree_program_name": load_column_retriever("lezione__degree_program_name", chroma_client, top_k=5),
-            "subject_name":        load_column_retriever("lezione__subject_name",        chroma_client, top_k=5, similarity_cutoff=0.5),
-            "study_year_code":     load_column_retriever("lezione__study_year_code",     chroma_client, top_k=5),
-            "curriculum":          load_column_retriever("lezione__curriculum",          chroma_client, top_k=5),
-            "date":                load_column_retriever("lezione__date",                chroma_client, top_k=1),
-            "department":          load_column_retriever("lezione__department",          chroma_client, top_k=5),
-            "room_name":           load_column_retriever("lezione__room_name",           chroma_client, top_k=5),
-            "site_name":           load_column_retriever("lezione__site_name",           chroma_client, top_k=5),
-            "address":             load_column_retriever("lezione__address",             chroma_client, top_k=5),
-            "professors":          load_column_retriever("lezione__professors",          chroma_client, top_k=5),
+        "calendar_lesson": {
+            "degree_program_name": load_column_retriever("calendar_lesson__degree_program_name", chroma_client, top_k=5),
+            "subject_name":        load_column_retriever("calendar_lesson__subject_name",        chroma_client, top_k=5, similarity_cutoff=0.5),
+            "study_year_code":     load_column_retriever("calendar_lesson__study_year_code",     chroma_client, top_k=5),
+            "curriculum":          load_column_retriever("calendar_lesson__curriculum",          chroma_client, top_k=5),
+            "date":                load_column_retriever("calendar_lesson__date",                chroma_client, top_k=1),
+            "department":          load_column_retriever("calendar_lesson__department",          chroma_client, top_k=5),
+            "room_name":           load_column_retriever("calendar_lesson__room_name",           chroma_client, top_k=5),
+            "site_name":           load_column_retriever("calendar_lesson__site_name",           chroma_client, top_k=5),
+            "address":             load_column_retriever("calendar_lesson__address",             chroma_client, top_k=5),
+            "professors":          load_column_retriever("calendar_lesson__professors",          chroma_client, top_k=5),
         },
-        "evento_aula": {
-            "site_name":  load_column_retriever("evento_aula__site_name",  chroma_client, top_k=5),
-            "room_name":  load_column_retriever("evento_aula__room_name",  chroma_client, top_k=5),
-            "name_event": load_column_retriever("evento_aula__name_event", chroma_client, top_k=5),
-            "professors": load_column_retriever("evento_aula__professors", chroma_client, top_k=5),
-            "event_type": load_column_retriever("evento_aula__event_type", chroma_client, top_k=5),
+        "room_event": {
+            "site_name":  load_column_retriever("room_event__site_name",  chroma_client, top_k=5),
+            "room_name":  load_column_retriever("room_event__room_name",  chroma_client, top_k=5),
+            "name_event": load_column_retriever("room_event__name_event", chroma_client, top_k=5),
+            "professors": load_column_retriever("room_event__professors", chroma_client, top_k=5),
+            "event_type": load_column_retriever("room_event__event_type", chroma_client, top_k=5),
 
         },
-        "info_aula": {
-            "site_name": load_column_retriever("info_aula__site_name", chroma_client, top_k=5),
-            "room_name": load_column_retriever("info_aula__room_name", chroma_client, top_k=5),
-            "address":   load_column_retriever("info_aula__address",   chroma_client, top_k=5),
-            "floor":     load_column_retriever("info_aula__floor",     chroma_client, top_k=5),
-            "room_type": load_column_retriever("info_aula__room_type", chroma_client, top_k=5),
+        "room_info": {
+            "site_name": load_column_retriever("room_info__site_name", chroma_client, top_k=5),
+            "room_name": load_column_retriever("room_info__room_name", chroma_client, top_k=5),
+            "address":   load_column_retriever("room_info__address",   chroma_client, top_k=5),
+            "floor":     load_column_retriever("room_info__floor",     chroma_client, top_k=5),
+            "room_type": load_column_retriever("room_info__room_type", chroma_client, top_k=5),
         },
     }
 

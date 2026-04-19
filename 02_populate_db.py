@@ -11,19 +11,19 @@ import sqlite3
 from pathlib import Path
 from utils import normalize_text
 
-DEFAULT_PERSONALE           =    "2025-2026_data/address_book.json"
-DEFAULT_INSEGNAMENTO        =    "2025-2026_data/courses_with_teams_code.json"
-DEFAULT_CORSO_DI_LAUREA     =    "2025-2026_data/full_degree_programs.json"
-DEFAULT_LEZIONI_DIR         =    "2025-2026_data/lessons_calendar/"
-DEFAULT_CALENDARIO_AULE_DIR =    "2025-2026_data/rooms_calendar/"
-DEFAULT_INFO_AULE           =    "2025-2026_data/info_rooms.json"
+DEFAULT_STAFF                   =    "2025-2026_data/address_book.json"
+DEFAULT_SUBJECT                 =    "2025-2026_data/courses_with_teams_code.json"
+DEFAULT_DEGREE_PROGRAM          =    "2025-2026_data/full_degree_programs.json"
+DEFAULT_CALENDAR_LESSONS_DIR    =    "2025-2026_data/lessons_calendar/"
+DEFAULT_ROOM_CALENDAR_DIR       =    "2025-2026_data/rooms_calendar/"
+DEFAULT_ROOM_INFO               =    "2025-2026_data/info_rooms.json"
 
-DEFAULT_DB                  =    "2025-2026_data/university.db"
+DEFAULT_DB                      =    "2025-2026_data/university.db"
 
 # ---------------------------------------------------------------------------
 # Loaders
 
-def load_personale(path: Path) -> list[dict]:
+def load_staff(path: Path) -> list[dict]:
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
@@ -33,7 +33,7 @@ def load_personale(path: Path) -> list[dict]:
     for entry in entries:
         meta = entry.get("metadata", {})
         rows.append({
-            "nome_and_surname":     normalize_text(meta.get("nome")),
+            "name_and_surname":     normalize_text(meta.get("nome")),
             "role":                 normalize_text(meta.get("role")),
             "department":           normalize_text(meta.get("department")),
             "department_url":         meta.get("department_url"),   # URL — do not normalize
@@ -44,7 +44,7 @@ def load_personale(path: Path) -> list[dict]:
     return rows
 
 
-def load_insegnamento(path: Path) -> list[dict]:
+def load_subject(path: Path) -> list[dict]:
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
@@ -74,7 +74,7 @@ def load_insegnamento(path: Path) -> list[dict]:
     return rows
 
 
-def load_corso_di_laurea(path: Path) -> list[dict]:
+def load_degree_program(path: Path) -> list[dict]:
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
@@ -100,18 +100,18 @@ def load_corso_di_laurea(path: Path) -> list[dict]:
     return rows
 
 
-def load_lezioni(lezioni_dir: Path) -> list[dict]:
+def load_lessons(calendar_lessons_dir: Path) -> list[dict]:
     """
     Parse all JSON files inside lezioni_dir.
     Each file contains a list of lesson objects.
     """
 
-    if not lezioni_dir.exists() or not lezioni_dir.is_dir():
-        raise FileNotFoundError(f"Events directory not found: {lezioni_dir}")
+    if not calendar_lessons_dir.exists() or not calendar_lessons_dir.is_dir():
+        raise FileNotFoundError(f"Events directory not found: {calendar_lessons_dir}")
 
-    json_files = sorted(lezioni_dir.glob("*.json"))
+    json_files = sorted(calendar_lessons_dir.glob("*.json"))
     if not json_files:
-        print(f"[lezione]       no JSON files found in {lezioni_dir}")
+        print(f"[lesson]       no JSON files found in {calendar_lessons_dir}")
         return []
 
     rows = []
@@ -151,20 +151,20 @@ def load_lezioni(lezioni_dir: Path) -> list[dict]:
                 "url":                     meta.get("url"),                 # URL — do not normalize
             })
 
-    print(f"[lezione]       loaded {len(rows):>6} rows from {len(json_files)} file(s)")
+    print(f"[lesson]       loaded {len(rows):>6} rows from {len(json_files)} file(s)")
     return rows
 
-def load_calendario_aule(calendario_aule_dir: Path) -> list[dict]:
+def load_room_calendar(room_calendar_dir: Path) -> list[dict]:
     """
-    Parse all JSON files inside calendario_aule_dir.
+    Parse all JSON files inside room_calendar_dir.
     Each file is a list of event objects with a 'metadata' key.
     """
-    if not calendario_aule_dir.exists() or not calendario_aule_dir.is_dir():
-        raise FileNotFoundError(f"Events directory not found: {calendario_aule_dir}")
+    if not room_calendar_dir.exists() or not room_calendar_dir.is_dir():
+        raise FileNotFoundError(f"Events directory not found: {room_calendar_dir}")
 
-    json_files = sorted(calendario_aule_dir.glob("*.json"))
+    json_files = sorted(room_calendar_dir.glob("*.json"))
     if not json_files:
-        print(f"[lezione]       no JSON files found in {calendario_aule_dir}")
+        print(f"[lezione]       no JSON files found in {room_calendar_dir}")
         return []
 
     rows = []
@@ -231,11 +231,11 @@ def load_info_aule(path: Path) -> list[dict]:
 
 def insert_data(
     db_path: Path,
-    personale_path: Path,
-    insegnamento_path: Path,
+    staff_path: Path,
+    subject_path: Path,
     info_corsi_di_laurea: Path,
-    lezioni_dir: Path,
-    calendario_aule_dir: Path,
+    calendar_lessons_dir: Path,
+    room_calendar_dir: Path,
     info_aule: Path,
 ) -> None:
     if not db_path.exists():
@@ -246,47 +246,47 @@ def insert_data(
     con = sqlite3.connect(db_path)
 
     with con:
-        # -- personale --
-        personale_rows = load_personale(personale_path)
+        # -- staff --
+        staff_rows = load_staff(staff_path)
         con.executemany(
-            """INSERT INTO personale
-               (nome_and_surname, role, department, department_url, phone, email, last_update)
-               VALUES (:nome_and_surname, :role, :department, :department_url,
+            """INSERT INTO staff
+               (name_and_surname, role, department, department_url, phone, email, last_update)
+               VALUES (:name_and_surname, :role, :department, :department_url,
                        :phone, :email, :last_update)""",
-            personale_rows,
+            staff_rows,
         )
-        print(f"[personale]    inserted {len(personale_rows):>6} rows")
+        print(f"[staff]    inserted {len(staff_rows):>6} rows")
 
-        # -- insegnamento --
-        insegnamento_rows = load_insegnamento(insegnamento_path)
+        # -- subject --
+        subject_rows = load_subject(subject_path)
         con.executemany(
-            """INSERT INTO insegnamento
+            """INSERT INTO subject
                (subject_code, degree_program_name, degree_program_name_eng, degree_program_code,
                 subject_name, study_code, academic_year, teams_code, professors,
                 main_professor_id, period, last_update)
                VALUES (:subject_code, :degree_program_name, :degree_program_name_eng, :degree_program_code,
                        :subject_name, :study_code, :academic_year, :teams_code, :professors,
                        :main_professor_id, :period, :last_update)""",
-            insegnamento_rows,
+            subject_rows,
         )
-        print(f"[insegnamento] inserted {len(insegnamento_rows):>6} rows")
+        print(f"[subject] inserted {len(subject_rows):>6} rows")
 
       # -- corsi di laurea --
-        corso_di_laurea_rows = load_corso_di_laurea(info_corsi_di_laurea)
+        degree_program_rows = load_degree_program(info_corsi_di_laurea)
         con.executemany(
-            """INSERT INTO corso_di_laurea
+            """INSERT INTO degree_program
                (name, url, department, type, duration, location, language)
                VALUES (:name, :url, :department,
                        :type, :duration, :location, :language)""",
-            corso_di_laurea_rows,
+            degree_program_rows,
         )
-        print(f"[insegnamento] inserted {len(corso_di_laurea_rows):>6} rows")
+        print(f"[subject] inserted {len(degree_program_rows):>6} rows")
         
-        # -- lezione --
-        lezione_rows = load_lezioni(lezioni_dir)
-        if lezione_rows:
+        # -- lesson --
+        calendar_lesson_rows = load_lessons(calendar_lessons_dir)
+        if calendar_lesson_rows:
             con.executemany(
-                """INSERT INTO lezione
+                """INSERT INTO calendar_lesson
                 (subject_code, degree_program_name, degree_program_code, subject_name,
                     study_year_code, curriculum, date, start_time, end_time, department,
                     room_code, room_name, site_code, site_name, address,
@@ -295,36 +295,36 @@ def insert_data(
                         :study_year_code, :curriculum, :date, :start_time, :end_time, :department,
                         :room_code, :room_name, :site_code, :site_name, :address,
                         :professors, :cancelled, :url)""",
-                lezione_rows,
+                calendar_lesson_rows,
             )
-            print(f"[lezione]       inserted {len(lezione_rows):>6} rows")
+            print(f"[lesson]       inserted {len(calendar_lesson_rows):>6} rows")
 
 
-        # -- evento_aula --
-        calendario_aule_rows = load_calendario_aule(calendario_aule_dir)
-        if calendario_aule_rows:
+        # -- room_event --
+        room_calendar_rows = load_room_calendar(room_calendar_dir)
+        if room_calendar_rows:
             con.executemany(
-                """INSERT INTO evento_aula
+                """INSERT INTO room_event
                    (site_code, room_code, site_name, room_name, date, last_update, start_time, end_time, name_event,
                     professors, cancelled, event_type)
                    VALUES (:site_code, :room_code, :site_name, :room_name, :date, :last_update, :start_time, :end_time, :name_event,
                            :professors, :cancelled, :event_type)""",
-                calendario_aule_rows,
+                room_calendar_rows,
             )
-            print(f"[calendario aule]       inserted {len(calendario_aule_rows):>6} rows")
+            print(f"[room event]       inserted {len(room_calendar_rows):>6} rows")
 
-        # -- info_aula --
-        info_aula_rows = load_info_aule(info_aule)
-        if info_aula_rows:
+        # -- room_info --
+        room_info_rows = load_info_aule(info_aule)
+        if room_info_rows:
             con.executemany(
-                """INSERT INTO info_aula
+                """INSERT INTO room_info
                    (room_code, room_name, site_name, site_code, address, floor, room_type, capacity, accessible,
                     maps_url, equipment)
                    VALUES (:room_code, :room_name, :site_name, :site_code, :address, :floor, :room_type, :capacity, :accessible,
                            :maps_url, :equipment)""",
-                info_aula_rows,
+                room_info_rows,
             )
-            print(f"[info aula]       inserted {len(info_aula_rows):>6} rows")
+            print(f"[room info]       inserted {len(room_info_rows):>6} rows")
 
     con.close()
     print(f"\nData inserted into: {db_path.resolve()}")
@@ -333,10 +333,10 @@ def insert_data(
 if __name__ == "__main__":
     insert_data(
         db_path=Path(DEFAULT_DB),
-        personale_path=Path(DEFAULT_PERSONALE),
-        insegnamento_path=Path(DEFAULT_INSEGNAMENTO),
-        info_corsi_di_laurea=Path(DEFAULT_CORSO_DI_LAUREA),
-        lezioni_dir=Path(DEFAULT_LEZIONI_DIR),
-        calendario_aule_dir=Path(DEFAULT_CALENDARIO_AULE_DIR),
-        info_aule=Path(DEFAULT_INFO_AULE),
+        staff_path=Path(DEFAULT_STAFF),
+        subject_path=Path(DEFAULT_SUBJECT),
+        info_corsi_di_laurea=Path(DEFAULT_DEGREE_PROGRAM),
+        calendar_lessons_dir=Path(DEFAULT_CALENDAR_LESSONS_DIR),
+        room_calendar_dir=Path(DEFAULT_ROOM_CALENDAR_DIR),
+        info_aule=Path(DEFAULT_ROOM_INFO),
     )
